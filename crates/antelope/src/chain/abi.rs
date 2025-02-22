@@ -41,7 +41,7 @@ pub enum ABIResolvedType {
     Extension(Box<ABIResolvedType>),
 }
 
-pub const STD_TYPES: [&str; 32] = [
+pub const STD_TYPES: [&str; 33] = [
     "bool",
 
     "int8",
@@ -69,6 +69,8 @@ pub const STD_TYPES: [&str; 32] = [
     "checksum160",
     "checksum256",
     "checksum512",
+
+    "transaction_id",
 
     "name",
     "account_name",
