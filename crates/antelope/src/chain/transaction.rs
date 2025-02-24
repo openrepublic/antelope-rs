@@ -78,10 +78,10 @@ impl CompressionType {
 
 #[derive(Clone, Eq, PartialEq, Default, StructPacker, Serialize, Deserialize)]
 pub struct PackedTransaction {
-    signatures: Vec<Signature>,
-    compression: Option<u8>,
-    packed_context_free_data: Vec<u8>,
-    packed_transaction: Vec<u8>,
+    pub signatures: Vec<Signature>,
+    pub compression: Option<u8>,
+    pub packed_context_free_data: Vec<u8>,
+    pub packed_transaction: Vec<u8>,
 }
 
 impl PackedTransaction {
