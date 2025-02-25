@@ -31,12 +31,43 @@ pub struct ABI {
     // kv_tables: {}
 }
 
+pub enum ABIResolvedType {
+    Variant(AbiVariant),
+    Struct(AbiStruct),
+}
+
 impl ABI {
     pub fn from_string(str: &str) -> Result<Self, String> {
         let mut abi = serde_json::from_str::<ABI>(str).unwrap();
         abi.error_messages = vec![];
         abi.abi_extensions = vec![];
         Ok(abi)
+    }
+
+    pub fn resolve_type(&self, type_name: &str) -> Option<ABIResolvedType> {
+        // _type will change as type_name gets resolved
+        let mut _type = type_name.to_string();
+
+        // is type alias?
+        let maybe_type_meta = self.types.iter().find(|t| t.new_type_name == type_name);
+        if let Some(type_meta) = maybe_type_meta {
+            _type = type_meta.r#type.clone();
+        }
+
+        // is variant?
+        let maybe_var_meta = self.variants.iter().find(|v| v.name == _type);
+        if maybe_var_meta.is_some() {
+            return Some(ABIResolvedType::Variant(maybe_var_meta.unwrap().clone()));
+        }
+
+        // is struct?
+        let maybe_struct_meta = self.structs.iter().find(|s| s.name == _type);
+        match maybe_struct_meta {
+            Some(struct_meta) => {
+                Some(ABIResolvedType::Struct(struct_meta.clone()))
+            },
+            None => None
+        }
     }
 }
 
