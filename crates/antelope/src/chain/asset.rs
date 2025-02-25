@@ -2,8 +2,9 @@ use core::ops;
 use serde::{de, Deserialize, Deserializer, Serialize};
 use std::fmt;
 use std::fmt::{Display, Formatter};
-
+use thiserror::Error;
 use crate::chain::{name::Name, Decoder, Encoder, Packer};
+use crate::chain::name::NameError;
 
 const MAX_AMOUNT: i64 = (1 << 62) - 1;
 const MAX_PRECISION: u8 = 18;
@@ -37,6 +38,15 @@ pub fn is_valid_symbol_code(sym: u64) -> bool {
         }
     }
     true
+}
+
+#[derive(Debug, Error)]
+pub enum SymbolCodeError {
+    #[error("SymbolCode.from_string: bad symbol name")]
+    BadSymbolName,
+
+    #[error("SymbolCode.from_string: invalid symbol code character")]
+    InvalidSymbolCharacter,
 }
 
 #[derive(Copy, Clone, Default, Eq, PartialEq, Serialize, Deserialize)]
@@ -78,6 +88,23 @@ impl SymbolCode {
         String::from_utf8(v).unwrap()
     }
 
+    pub fn from_string(sym: &str) -> Result<Self, SymbolCodeError> {
+        let raw = sym.as_bytes();
+        if raw.is_empty() || raw.len() >= 7 {
+            return Err(SymbolCodeError::BadSymbolName);
+        }
+
+        let mut value: u64 = 0;
+        for &c in raw.iter().rev() {
+            if !c.is_ascii_uppercase() {
+                return Err(SymbolCodeError::InvalidSymbolCharacter);
+            }
+            value = (value << 8) | c as u64;
+        }
+
+        Ok(Self { value })
+    }
+
     pub fn is_valid(&self) -> bool {
         is_valid_symbol_code(self.value)
     }
@@ -107,6 +134,18 @@ impl Packer for SymbolCode {
         assert!(self.is_valid(), "SymbolCode.unpack:: bad symbol code");
         8
     }
+}
+
+#[derive(Debug, Error)]
+pub enum SymbolError {
+    #[error("Symbol.from_string: bad symbol name")]
+    BadSymbolName,
+
+    #[error("Symbol.from_string: invalid symbol character")]
+    InvalidSymbolCharacter,
+
+    #[error("Symbol.from_string: invalid precision")]
+    InvalidPrecision,
 }
 
 #[derive(Debug, Copy, Clone, Default, Eq, PartialEq, Serialize, Deserialize)]
@@ -153,6 +192,21 @@ impl Symbol {
     pub fn is_valid(&self) -> bool {
         self.code().is_valid()
     }
+
+    pub fn from_string(s: &str) -> Result<Self, SymbolError> {
+        let parts: Vec<&str> = s.split(',').collect();
+        if parts.len() != 2 {
+            return Err(SymbolError::BadSymbolName);
+        }
+
+        let precision = parts[0].parse::<u8>().map_err(|_| SymbolError::InvalidPrecision)?;
+        let code = SymbolCode::from_string(parts[1]).map_err(|_| SymbolError::InvalidSymbolCharacter)?;
+
+        let mut value = code.value() << 8;
+        value |= precision as u64;
+
+        Ok(Self { value })
+    }
 }
 
 impl Display for Symbol {
@@ -191,6 +245,33 @@ enum AssetStringParseStatus {
     FoundSpace,
 }
 
+#[derive(Debug, Error)]
+pub enum AssetFromStrError {
+    #[error("Asset.from_string: empty string")]
+    EmptyString,
+
+    #[error("Asset.from_string: invalid dot character")]
+    InvalidDot,
+
+    #[error("Asset.from_string: invalid space character")]
+    InvalidSpace,
+
+    #[error("Asset.from_string: bad amount")]
+    BadAmount,
+
+    #[error("Asset.from_string: bad precision")]
+    BadPrecision,
+
+    #[error("Asset.from_string: bad symbol")]
+    BadSymbol,
+
+    #[error("Magnitude of asset amount must be less than 2^62")]
+    AmountOutOfRange,
+
+    #[error("Invalid symbol name")]
+    InvalidSymbol,
+}
+
 fn is_amount_within_range(amount: i64) -> bool {
     (-MAX_AMOUNT..=MAX_AMOUNT).contains(&amount)
 }
@@ -205,8 +286,11 @@ impl Asset {
         Self { amount, symbol }
     }
 
-    pub fn from_string(s: &str) -> Self {
-        assert!(!s.is_empty(), "Asset.from_string: empty string");
+    pub fn from_string(s: &str) -> Result<Self, AssetFromStrError> {
+        if s.is_empty() {
+            return Err(AssetFromStrError::EmptyString);
+        }
+
         let mut status = AssetStringParseStatus::Initial;
         let mut raw = s.as_bytes();
 
@@ -223,52 +307,67 @@ impl Asset {
 
         for &c in raw {
             if c == b'.' {
-                assert!(
-                    status == AssetStringParseStatus::Initial,
-                    "Asset.from_string: invalid dot character"
-                );
+                if status != AssetStringParseStatus::Initial {
+                    return Err(AssetFromStrError::InvalidDot);
+                }
                 status = AssetStringParseStatus::FoundDot;
                 continue;
             } else if c == b' ' {
-                assert!(
-                    status == AssetStringParseStatus::Initial
-                        || status == AssetStringParseStatus::FoundDot,
-                    "Asset.from_string: invalid space character"
-                );
-                // if status == AssetStringParseStatus::FoundDot {
-                //     assert!(precision > 0, "Asset.from_string: invalid precision");
-                // }
+                if status != AssetStringParseStatus::Initial
+                    && status != AssetStringParseStatus::FoundDot
+                {
+                    return Err(AssetFromStrError::InvalidSpace);
+                }
                 status = AssetStringParseStatus::FoundSpace;
                 continue;
             }
 
             match status {
                 AssetStringParseStatus::Initial => {
-                    assert!(c.is_ascii_digit(), "Asset.from_string: bad amount");
-                    amount *= 10;
-                    amount += (c - b'0') as i64;
-                    assert!(is_amount_within_range(amount), "bad amount");
+                    if !c.is_ascii_digit() {
+                        return Err(AssetFromStrError::BadAmount);
+                    }
+                    amount = amount
+                        .checked_mul(10)
+                        .and_then(|a| a.checked_add((c - b'0') as i64))
+                        .ok_or(AssetFromStrError::BadAmount)?;
+
+                    if !is_amount_within_range(amount) {
+                        return Err(AssetFromStrError::AmountOutOfRange);
+                    }
                 }
                 AssetStringParseStatus::FoundDot => {
-                    assert!(c.is_ascii_digit(), "Asset.from_string: bad amount");
-                    amount *= 10;
-                    amount += (c - b'0') as i64;
+                    if !c.is_ascii_digit() {
+                        return Err(AssetFromStrError::BadAmount);
+                    }
+                    amount = amount
+                        .checked_mul(10)
+                        .and_then(|a| a.checked_add((c - b'0') as i64))
+                        .ok_or(AssetFromStrError::BadAmount)?;
                     precision += 1;
-                    assert!(
-                        precision <= MAX_PRECISION,
-                        "Asset.from_string: bad precision"
-                    );
-                    assert!(is_amount_within_range(amount), "bad amount");
+
+                    if precision > MAX_PRECISION {
+                        return Err(AssetFromStrError::BadPrecision);
+                    }
+                    if !is_amount_within_range(amount) {
+                        return Err(AssetFromStrError::AmountOutOfRange);
+                    }
                 }
                 AssetStringParseStatus::FoundSpace => {
-                    assert!(c.is_ascii_uppercase(), "Asset.from_string: bad symbol");
+                    if !c.is_ascii_uppercase() {
+                        return Err(AssetFromStrError::BadSymbol);
+                    }
                     raw_symbol.push(c);
-                    assert!(raw_symbol.len() < 7, "Asset.from_string: bad symbol");
+                    if raw_symbol.len() >= 7 {
+                        return Err(AssetFromStrError::BadSymbol);
+                    }
                 }
             }
         }
 
-        assert!(!raw_symbol.is_empty(), "Asset.from_string: bad symbol");
+        if raw_symbol.is_empty() {
+            return Err(AssetFromStrError::BadSymbol);
+        }
 
         if minus {
             amount = -amount;
@@ -276,17 +375,17 @@ impl Asset {
 
         raw_symbol.reverse();
         for c in raw_symbol {
-            symbol <<= 8;
-            symbol |= c as u64;
+            symbol = (symbol << 8) | c as u64;
         }
 
-        symbol <<= 8;
-        symbol |= precision as u64;
+        symbol = (symbol << 8) | precision as u64;
 
-        Self {
-            amount,
-            symbol: Symbol { value: symbol },
+        let symbol_struct = Symbol { value: symbol };
+        if !symbol_struct.is_valid() {
+            return Err(AssetFromStrError::InvalidSymbol);
         }
+
+        Ok(Self { amount, symbol: symbol_struct })
     }
 
     pub fn amount(&self) -> i64 {
@@ -424,7 +523,7 @@ where
             E: de::Error,
         {
             // Directly return the Asset instance since Asset::from_string does not produce errors.
-            Ok(Asset::from_string(value))
+            Ok(Asset::from_string(value).map_err(|e| de::Error::custom(e.to_string()))?)
         }
     }
 
@@ -457,6 +556,16 @@ where
     deserializer.deserialize_option(OptionalAssetVisitor)
 }
 
+#[derive(Debug, Error)]
+pub enum ExtendedAssetErrror {
+    #[error("ExtendedAsset.from_string: invalid format expected asset@contract")]
+    FormatError,
+    #[error("ExtendedAsset.from_string: invalid asset")]
+    AssetError(AssetFromStrError),
+    #[error("ExtendedAsset.from_string: invalid contract name")]
+    ContractError(NameError)
+}
+
 #[derive(Copy, Clone, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ExtendedAsset {
     quantity: Asset,
@@ -474,6 +583,21 @@ impl ExtendedAsset {
 
     pub fn contract(&self) -> Name {
         self.contract
+    }
+
+    pub fn from_string(s: &str) -> Result<ExtendedAsset, ExtendedAssetErrror> {
+        let (first, second) = match s.split_once("@") {
+            Some((first, second)) => Ok((first, second)),
+            None => Err(ExtendedAssetErrror::FormatError)
+        }?;
+
+        let quantity = Asset::from_string(first).map_err(|e| ExtendedAssetErrror::AssetError(e))?;
+        let contract = Name::from_string(second).map_err(|e| ExtendedAssetErrror::ContractError(e))?;
+
+        Ok(ExtendedAsset {
+            quantity,
+            contract
+        })
     }
 }
 

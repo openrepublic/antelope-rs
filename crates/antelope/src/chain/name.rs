@@ -5,7 +5,7 @@ use std::{
 
 use serde::de::SeqAccess;
 use serde::{Deserialize, Deserializer, Serialize};
-
+use thiserror::Error;
 use crate::serializer::{Encoder, Packer};
 
 const INVALID_NAME_CHAR: u8 = 0xffu8;
@@ -178,6 +178,12 @@ fn str_to_name_checked(s: &str) -> u64 {
     n
 }
 
+#[derive(Debug, Error)]
+pub enum NameError {
+    #[error("Name.from_string: invalid name")]
+    InvalidName
+}
+
 /// a wrapper around a 64-bit unsigned integer that represents a name in the
 /// Antelope blockchain
 #[repr(C, align(8))]
@@ -208,6 +214,14 @@ impl Name {
 
     pub fn as_string(&self) -> String {
         n2s(self.n)
+    }
+
+    pub fn from_string(s: &str) -> Result<Name, NameError> {
+        let n = str_to_name(s);
+        if n == INVALID_NAME {
+            return Err(NameError::InvalidName);
+        }
+        Ok(Name { n })
     }
 }
 
