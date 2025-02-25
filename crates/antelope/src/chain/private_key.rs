@@ -85,8 +85,8 @@ impl PrivateKey {
     }
 
     pub fn random(key_type: KeyType) -> Result<Self, String> {
-        let secret_bytes = generate(key_type);
-        Ok(Self::from_bytes(secret_bytes.unwrap(), key_type))
+        let secret_bytes = generate(key_type)?;
+        Ok(Self::from_bytes(secret_bytes[1..].to_vec(), key_type))
     }
 }
 

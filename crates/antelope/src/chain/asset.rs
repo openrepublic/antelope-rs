@@ -49,7 +49,7 @@ pub enum SymbolCodeError {
     InvalidSymbolCharacter,
 }
 
-#[derive(Copy, Clone, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Default, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct SymbolCode {
     pub value: u64,
 }
