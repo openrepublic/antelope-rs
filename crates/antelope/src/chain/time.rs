@@ -153,3 +153,62 @@ where
     // Updated to handle null values directly
     deserializer.deserialize_any(OptionalTimePointVisitor)
 }
+
+const BLOCK_INTERVAL_MS: u64 = 500;
+const BLOCK_TIMESTAMP_EPOCH_MS: u64 = 946684800000; // 2000-01-01T00:00:00Z
+
+#[derive(Copy, Clone, Default, PartialEq, Eq, Debug, Serialize, Deserialize)]
+pub struct BlockTimestamp {
+    pub slot: u32,
+}
+
+impl BlockTimestamp {
+    pub fn new(slot: u32) -> Self {
+        Self { slot }
+    }
+
+    pub fn maximum() -> Self {
+        Self { slot: 0xFFFF }
+    }
+
+    pub fn min() -> Self {
+        Self { slot: 0 }
+    }
+
+    pub fn next(&self) -> Self {
+        Self { slot: self.slot.saturating_add(1) }
+    }
+
+    pub fn from_time_point(tp: TimePoint) -> Self {
+        Self { slot: ((tp.elapsed - BLOCK_TIMESTAMP_EPOCH_MS) / BLOCK_INTERVAL_MS) as u32 }
+    }
+
+    pub fn from_time_point_sec(tp: TimePointSec) -> Self {
+        let ms = (tp.seconds * 1000) as u64;
+        Self { slot: ((ms - BLOCK_TIMESTAMP_EPOCH_MS) / BLOCK_INTERVAL_MS) as u32 }
+    }
+
+    pub fn to_time_point(&self) -> TimePoint {
+        let millis = self.slot as u64 * BLOCK_INTERVAL_MS + BLOCK_TIMESTAMP_EPOCH_MS;
+        TimePoint { elapsed: millis }
+    }
+
+    pub fn to_time_point_sec(&self) -> TimePointSec {
+        let seconds = (self.slot as u64 * BLOCK_INTERVAL_MS + BLOCK_TIMESTAMP_EPOCH_MS / 1000) as u32;
+        TimePointSec { seconds }
+    }
+}
+
+impl Packer for BlockTimestamp {
+    fn size(&self) -> usize {
+        4
+    }
+
+    fn pack(&self, enc: &mut Encoder) -> usize {
+        self.slot.pack(enc)
+    }
+
+    fn unpack(&mut self, raw: &[u8]) -> usize {
+        self.slot.unpack(raw)
+    }
+}

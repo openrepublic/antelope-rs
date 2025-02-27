@@ -585,6 +585,10 @@ impl ExtendedAsset {
         self.contract
     }
 
+    pub fn as_string(&self) -> String {
+        format!("{}@{}", self.quantity, self.contract)
+    }
+
     pub fn from_string(s: &str) -> Result<ExtendedAsset, ExtendedAssetErrror> {
         let (first, second) = match s.split_once("@") {
             Some((first, second)) => Ok((first, second)),
@@ -598,6 +602,12 @@ impl ExtendedAsset {
             quantity,
             contract
         })
+    }
+}
+
+impl Display for ExtendedAsset {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_string())
     }
 }
 
