@@ -34,6 +34,16 @@ impl TimePoint {
             elapsed: (date_time.timestamp_millis() * 1000) as u64,
         })
     }
+
+
+    pub fn to_string(&self) -> Option<String> {
+        let seconds = self.elapsed / 1000;
+        let milliseconds = self.elapsed % 1000;
+
+        Utc.timestamp_millis_opt(seconds as i64)
+            .single() // Handle LocalResult correctly
+            .map(|dt| format!("{}.{}", dt.format("%Y-%m-%dT%H:%M:%S"), milliseconds))
+    }
 }
 
 impl Packer for TimePoint {
@@ -59,6 +69,14 @@ pub struct TimePointSec {
     pub seconds: u32,
 }
 
+impl FromStr for TimePointSec {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        TimePointSec::from_timestamp(s)
+    }
+}
+
 impl TimePointSec {
     pub fn new(seconds: u32) -> Self {
         Self { seconds }
@@ -66,6 +84,19 @@ impl TimePointSec {
 
     pub fn seconds(&self) -> u32 {
         self.seconds
+    }
+
+    pub fn from_timestamp(t: &str) -> Result<Self, String> {
+        let naive_dt = NaiveDateTime::parse_from_str(t, "%Y-%m-%dT%H:%M:%S")
+            .map_err(|_e| "Failed to parse datetime")?;
+
+        Ok(Self { seconds: naive_dt.and_utc().timestamp() as u32 })
+    }
+
+    pub fn to_string(&self) -> Option<String> {
+        Utc.timestamp_opt(self.seconds as i64, 0)
+            .single() // Handle LocalResult by taking the single valid option
+            .map(|dt| dt.format("%Y-%m-%dT%H:%M:%S").to_string()) // Format the datetime if valid
     }
 }
 
@@ -196,6 +227,15 @@ impl BlockTimestamp {
     pub fn to_time_point_sec(&self) -> TimePointSec {
         let seconds = (self.slot as u64 * BLOCK_INTERVAL_MS + BLOCK_TIMESTAMP_EPOCH_MS / 1000) as u32;
         TimePointSec { seconds }
+    }
+
+    pub fn from_timestamp(s: &String) -> Result<Self, String> {
+        Ok(BlockTimestamp::from_time_point_sec(TimePointSec::from_str(s)?))
+    }
+    pub fn to_string(&self) -> Option<String> {
+        Utc.timestamp_opt(self.to_time_point_sec().seconds as i64, 0)
+            .single() // Handle LocalResult by taking the single valid option
+            .map(|dt| dt.format("%Y-%m-%dT%H:%M:%S").to_string()) // Format the datetime if valid
     }
 }
 
