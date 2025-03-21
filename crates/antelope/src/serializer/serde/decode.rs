@@ -1,3 +1,5 @@
+use base64::Engine;
+use base64::prelude::BASE64_STANDARD;
 use serde_json::{Map, Number, Value};
 use thiserror::Error;
 use crate::chain::abi::{ABIResolvedType, ABI};
@@ -9,7 +11,6 @@ use crate::chain::signature::Signature;
 use crate::chain::time::{BlockTimestamp, TimePoint, TimePointSec};
 use crate::chain::varint::VarUint32;
 use crate::serializer::Decoder;
-use crate::util::bytes_to_hex;
 
 #[derive(Error, Debug)]
 pub enum DecodeABITypeError {
@@ -151,7 +152,7 @@ pub fn decode_abi_type(
                     let mut val: Vec<u8> = Vec::new();
                     decoder.unpack(&mut val);
 
-                    Ok(Value::String(bytes_to_hex(&val)))
+                    Ok(Value::String(BASE64_STANDARD.encode(&val)))
                 }
                 "string" => {
                     let mut val = String::new();

@@ -1,3 +1,5 @@
+use base64::Engine;
+use base64::prelude::BASE64_STANDARD;
 use serde_json::Value;
 use thiserror::Error;
 use crate::chain::abi::{ABIResolvedType, AbiStruct, ABI};
@@ -9,7 +11,6 @@ use crate::chain::signature::Signature;
 use crate::chain::time::{BlockTimestamp, TimePoint, TimePointSec};
 use crate::chain::varint::VarUint32;
 use crate::serializer::{Encoder, Packer};
-use crate::util::hex_to_bytes;
 
 #[derive(Error, Debug)]
 pub enum EncodeABITypeError {
@@ -21,6 +22,9 @@ pub enum EncodeABITypeError {
 
     #[error("Invalid num conversion from {0} to {1}")]
     NumberConversionError(String, String),
+
+    #[error("Base64 encoding issue: {0}")]
+    Base64EncodingError(String),
 
     #[error("Unknown field type {0} for {1}")]
     FieldTypeMismatch(String, String),
@@ -201,7 +205,8 @@ pub fn encode_abi_type(
         Value::String(val) => {
             match field_type {
                 "bytes" => {
-                    let buf = hex_to_bytes(&val);
+                    let buf = BASE64_STANDARD.decode(&val)
+                        .map_err(|e| EncodeABITypeError::Base64EncodingError(e.to_string()))?;
                     Ok(buf.pack(encoder))
                 },
                 "string" => {
@@ -330,6 +335,9 @@ pub enum EncodeParamsError {
     #[error("Expected eosio::setabi::abi param to be of type bytes")]
     ABIEncodingError,
 
+    #[error("Base 64 decode error: {0}")]
+    Base64DecodeError(String),
+
     #[error("Encoder size mismatch, got {0} expected {1}")]
     EncoderSizeMismatch(usize, usize),
 
@@ -356,8 +364,11 @@ pub fn encode_params(
 
         if account_name == "eosio" && action_name == "setabi" && field_name == "abi" {
             let abi_str = match field_value {
-                Value::String(hex_bytes) => {
-                    Ok(String::from_utf8(hex_to_bytes(hex_bytes)).map_err(|_e| EncodeParamsError::ABIEncodingError))?
+                Value::String(b64_bytes) => {
+                    Ok(String::from_utf8(
+                        BASE64_STANDARD.decode(b64_bytes)
+                            .map_err(|e| EncodeParamsError::Base64DecodeError(e.to_string()))?
+                    ).map_err(|_e| EncodeParamsError::ABIEncodingError))?
                 }
                 _ => Err(EncodeParamsError::ABIEncodingError)?,
             }?;
