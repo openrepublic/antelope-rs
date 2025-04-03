@@ -28,6 +28,9 @@ pub enum DecodeABITypeError {
 
     #[error("Unknown variant index: {0}")]
     UnknownVariantIndex(u32),
+
+    #[error("Expected variant value to be Value::Object")]
+    VariantValueNotObject
 }
 
 pub fn decode_abi_type(
@@ -285,10 +288,20 @@ pub fn decode_abi_type(
             let var_type: &String = inner.types.get(vindex.n as usize)
                 .ok_or_else(|| DecodeABITypeError::UnknownVariantIndex(vindex.n))?;
 
-            let mut list = Vec::new();
-            list.push(Value::String(var_type.clone()));
-            list.push(decode_abi_type(abi, &var_type, buf_size, decoder)?);
-            Ok(Value::Array(list))
+            let mut obj_map: Map<String, Value> = Map::new();
+            obj_map.insert("type".to_string(), Value::String(var_type.clone()));
+
+            let var_value = decode_abi_type(abi, &var_type, buf_size, decoder)?;
+
+            let var_map = var_value
+                .as_object()
+                .ok_or_else(|| DecodeABITypeError::VariantValueNotObject)?;
+
+            for (key, value) in var_map.iter() {
+                obj_map.insert(key.clone(), value.clone());
+            }
+
+            Ok(Value::Object(obj_map))
         }
         ABIResolvedType::Struct(inner) => {
             let mut obj_map: Map<String, Value> = Map::new();

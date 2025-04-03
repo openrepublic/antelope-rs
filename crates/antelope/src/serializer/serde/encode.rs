@@ -38,8 +38,8 @@ pub enum EncodeABITypeError {
     #[error("{0}")]
     VariantTypeError(String),
 
-    #[error("Expected variant list to have 2 items")]
-    VariantSizeError,
+    #[error("Expected variant obj to have key: {0}")]
+    VariantKeyError(String),
 
     #[error("Expected variant type id to be String")]
     VariantTypeIdError,
@@ -55,6 +55,9 @@ pub enum EncodeABITypeError {
 
     #[error("Expected object type for struct")]
     ObjectTypeError,
+
+    #[error("Unexpected Value::Array")]
+    UnexpectedArray,
 
     #[error("Unexpected Value::Null")]
     UnexpectedNull
@@ -280,41 +283,33 @@ pub fn encode_abi_type(
                 _ => Err(EncodeABITypeError::FieldTypeMismatch(field_type.to_string(), "Value::String".to_string())),
             }
         }
-        Value::Array(values) => {
-            // If we got here, it might be a variant (encoded as [type, value]),
-            // because array handling was done earlier.
-            let variant_types = match field_meta {
-                ABIResolvedType::Variant(ref v) => v,
-                _ => return Err(EncodeABITypeError::VariantTypeError("ABI resolve did not yield variant type...".to_string())),
-            };
-
-            if values.len() != 2 {
-                return Err(EncodeABITypeError::VariantTypeError("Variant list is not size 2!".to_string()));
-            }
-
-            let variant_type: String = values.get(0)
-                .ok_or_else(|| EncodeABITypeError::VariantTypeIdError)?
-                .as_str()
-                .ok_or_else(|| EncodeABITypeError::VariantTypeError("Could not cast serde_json::Value to str".to_string()))?
-                .to_string();
-            let variant_index = variant_types
-                .types
-                .iter()
-                .position(|var_type_name| **var_type_name == variant_type)
-                .ok_or_else(|| EncodeABITypeError::VariantTypeNotFound(variant_type.clone()))?;
-
-            size += VarUint32::new(variant_index as u32).pack(encoder);
-
-            let variant_val  = values.get(1)
-                .ok_or_else(|| EncodeABITypeError::VariantValueTypeError)?;
-            Ok(encode_abi_type(abi, &variant_type, variant_val, encoder)?)
-        }
-        Value::Object(obj_map) => {
+        Value::Object(var_map) => {
+            // Can be tagged union encoded with type, value keys or regular struct
             return match field_meta {
+                ABIResolvedType::Variant(variant_types) => {
+                    if !var_map.contains_key("type") {
+                       return Err(EncodeABITypeError::VariantKeyError("type".to_string()));
+                    }
+
+                    let variant_type: String = var_map.get("type")
+                        .ok_or_else(|| EncodeABITypeError::VariantTypeIdError)?
+                        .as_str()
+                        .ok_or_else(|| EncodeABITypeError::VariantTypeError("Could not cast serde_json::Value to str".to_string()))?
+                        .to_string();
+                    let variant_index = variant_types
+                        .types
+                        .iter()
+                        .position(|var_type_name| **var_type_name == variant_type)
+                        .ok_or_else(|| EncodeABITypeError::VariantTypeNotFound(variant_type.clone()))?;
+
+                    size += VarUint32::new(variant_index as u32).pack(encoder);
+
+                    Ok(encode_abi_type(abi, &variant_type, field_value, encoder)?)
+                }
                 ABIResolvedType::Struct(struct_meta) => {
                     let mut struct_size = 0;
                     for field in &struct_meta.fields {
-                        let item = obj_map.get(&field.name)
+                        let item = var_map.get(&field.name)
                             .ok_or_else(|| EncodeABITypeError::ObjectMissingField(field.name.clone(), field.r#type.clone()))?;
 
                         struct_size += encode_abi_type(abi, &field.r#type, item, encoder)?;
@@ -324,6 +319,7 @@ pub fn encode_abi_type(
                 _ => Err(EncodeABITypeError::ObjectTypeError)
             }
         }
+        Value::Array(_) => Err(EncodeABITypeError::UnexpectedArray),
         Value::Null => Err(EncodeABITypeError::UnexpectedNull),
     }?;
 
