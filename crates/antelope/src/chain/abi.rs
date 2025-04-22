@@ -1,7 +1,6 @@
 use crate::chain::{Decoder, Encoder, Packer};
 use antelope_client_macros::StructPacker;
 use serde::{Deserialize, Serialize};
-
 use crate::{
     chain::name::{deserialize_name, Name},
     // serializer::{Decoder, Encoder, Packer},
@@ -28,7 +27,6 @@ pub struct ABI {
     pub variants: Vec<AbiVariant>,
     #[serde(default)]
     pub action_results: Vec<AbiActionResult>,
-    // kv_tables: {}
 }
 
 #[derive(Debug, Clone)]
@@ -86,14 +84,13 @@ pub const STD_TYPES: [&str; 33] = [
     "block_timestamp_type",
     "time_point",
     "time_point_sec",
-
 ];
 
 impl ABI {
     pub fn from_string(str: &str) -> Result<Self, String> {
-        let mut abi = serde_json::from_str::<ABI>(str).unwrap();
-        abi.error_messages = vec![];
-        abi.abi_extensions = vec![];
+        let abi = serde_json::from_str::<ABI>(str)
+            .map_err(|e| e.to_string())?;
+
         Ok(abi)
     }
 

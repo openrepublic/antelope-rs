@@ -360,7 +360,9 @@ impl Packer for String {
         if let Ok(s) = String::from_utf8(data[size..size + length.value() as usize].to_vec()) {
             *self = s;
         } else {
-            panic!("invalid utf8 string");
+            // TODO: maybe use lossy here? will cause problems on pack later...
+            let lossy = String::from_utf8_lossy(&data[size..size + length.value() as usize]).to_string();
+            panic!("invalid utf8 string: {}", lossy);
         }
         size + length.value() as usize
     }
