@@ -2,7 +2,6 @@ use thiserror::Error;
 use crate::chain::abi::{ABIResolvedType, AbiStruct, ABI};
 use crate::chain::asset::{Asset, ExtendedAsset, Symbol, SymbolCode};
 use crate::chain::checksum::{Checksum160, Checksum256, Checksum512};
-use crate::chain::Decoder;
 use crate::chain::name::Name;
 use crate::chain::public_key::PublicKey;
 use crate::chain::signature::Signature;
@@ -307,7 +306,6 @@ pub enum EncodeParamsError {
 
 pub fn encode_params(
     abi: &ABI,
-    account_name: &str,
     action_name: &str,
     params: &Vec<Value>,
 ) -> Result<Vec<u8>, Backtraced<EncodeParamsError>> {
@@ -321,22 +319,6 @@ pub fn encode_params(
         let field_type: String = struct_meta.fields.iter().find(|f| f.name == field_name)
             .unwrap()
             .r#type.clone();
-
-        if account_name == "eosio" && action_name == "setabi" && field_name == "abi" {
-            let abi: ABI = match field_value {
-                Value::Bytes(enc_abi_def) => {
-                    let mut dec = Decoder::new(enc_abi_def.as_slice());
-                    let mut abi = ABI::default();
-                    dec.unpack(&mut abi);
-                    Ok::<ABI, EncodeParamsError>(abi)
-                },
-                Value::String(abi_def) => {
-                    Ok(ABI::from_string(abi_def).map_err(|_e| EncodeParamsError::ABIEncodingError)?)
-                },
-                _ => Err(EncodeParamsError::ABIEncodingError)?,
-            }?;
-            size += abi.pack(&mut encoder);
-        }
 
         size += encode_abi_type(&abi, &field_type, &field_value, &mut encoder)
             .map_err(|e| EncodeParamsError::EncoderError(e.inner))?;
