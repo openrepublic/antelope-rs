@@ -4,7 +4,7 @@ use std::{
 };
 
 use serde::de::SeqAccess;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use thiserror::Error;
 use crate::serializer::{Encoder, Packer};
 
@@ -321,6 +321,41 @@ where
 
     deserializer.deserialize_seq(VecNameVisitor)
 }
+
+pub(crate) fn serialize_name<S>(name: &Name, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    serializer.serialize_str(&name.as_string())
+}
+
+#[allow(dead_code)]
+pub(crate) fn serialize_optional_name<S>(
+    name: &Option<Name>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    match name {
+        Some(n) => serializer.serialize_some(&n.as_string()),
+        None => serializer.serialize_none(),
+    }
+}
+
+
+#[allow(dead_code)]
+pub(crate) fn serialize_vec_name<S>(
+    names: &Vec<Name>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let strings: Vec<String> = names.iter().map(|n| n.as_string()).collect();
+    serializer.collect_seq(strings)
+}
+
 
 pub const SAME_PAYER: Name = Name { n: 0 };
 pub const ACTIVE: Name = Name {
