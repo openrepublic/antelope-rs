@@ -174,7 +174,7 @@ fn str_to_name(s: &str) -> u64 {
 
 fn str_to_name_checked(s: &str) -> u64 {
     let n = str_to_name(s);
-    assert_ne!(n, INVALID_NAME, "bad name string");
+    assert_ne!(n, INVALID_NAME, "{}", format!("bad name string: {}", s));
     n
 }
 

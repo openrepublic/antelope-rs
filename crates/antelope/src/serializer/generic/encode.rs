@@ -1,5 +1,5 @@
 use thiserror::Error;
-use crate::chain::abi::{ABIResolvedType, AbiStruct, ABI};
+use crate::chain::abi::{ABIResolvedType, ABITypeResolver, ABIView, AbiStruct};
 use crate::chain::asset::{Asset, ExtendedAsset, Symbol, SymbolCode};
 use crate::chain::checksum::{Checksum160, Checksum256, Checksum512};
 use crate::chain::name::Name;
@@ -63,8 +63,8 @@ pub enum EncodeABITypeError {
     UnexpectedNull,
 }
 
-pub fn encode_abi_type(
-    abi: &ABI,
+pub fn encode_abi_type<T: ABITypeResolver>(
+    abi: &T,
     field_type: &str,
     field_value: &Value,
     encoder: &mut Encoder
@@ -85,7 +85,7 @@ pub fn encode_abi_type(
                 }
                 _ => {
                     size += 1u8.pack(encoder);
-                    size += encode_abi_type(&abi, &resolved_type, field_value, encoder)?;
+                    size += encode_abi_type::<T>(&abi, &resolved_type, field_value, encoder)?;
                     Ok(size)
                 }
             }
@@ -304,12 +304,16 @@ pub enum EncodeParamsError {
     EncoderError(EncodeABITypeError),
 }
 
-pub fn encode_params(
-    abi: &ABI,
+pub fn encode_params<T: ABIView + ABITypeResolver>(
+    abi: &T,
     action_name: &str,
     params: &Vec<Value>,
 ) -> Result<Vec<u8>, Backtraced<EncodeParamsError>> {
-    let struct_meta: &AbiStruct = abi.structs.iter().find(|s| s.name == *action_name).unwrap();
+    let struct_meta: &AbiStruct = abi
+        .structs()
+        .iter()
+        .find(|s| s.name == *action_name)
+        .unwrap();
 
     let mut size = 0;
     let mut encoder = Encoder::new(0);
@@ -320,7 +324,7 @@ pub fn encode_params(
             .unwrap()
             .r#type.clone();
 
-        size += encode_abi_type(&abi, &field_type, &field_value, &mut encoder)
+        size += encode_abi_type::<T>(&abi, &field_type, &field_value, &mut encoder)
             .map_err(|e| EncodeParamsError::EncoderError(e.inner))?;
     }
     let encoder_size = encoder.get_size();

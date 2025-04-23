@@ -23,13 +23,22 @@ pub struct ABI {
     #[serde(default)]
     pub ricardian_clauses: Vec<AbiClause>,
     #[serde(default)]
-    error_messages: Vec<String>,
+    error_messages: Vec<AbiErrorMessage>,
     #[serde(default)]
     abi_extensions: Vec<String>,
     #[serde(default)]
     pub variants: Vec<AbiVariant>,
     #[serde(default)]
     pub action_results: Vec<AbiActionResult>,
+}
+
+impl ABI {
+    pub fn from_string(str: &str) -> Result<Self, String> {
+        let abi = serde_json::from_str::<ABI>(str)
+            .map_err(|e| e.to_string())?;
+
+        Ok(abi)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -89,92 +98,73 @@ pub const STD_TYPES: [&str; 33] = [
     "time_point_sec",
 ];
 
-impl ABI {
-    pub fn from_string(str: &str) -> Result<Self, String> {
-        let abi = serde_json::from_str::<ABI>(str)
-            .map_err(|e| e.to_string())?;
+pub trait ABITypeResolver {
+    fn resolve_type(&self, str: &str) -> Option<(ABIResolvedType, String)>;
+}
 
-        Ok(abi)
+pub trait HasNameAndType {
+    fn name_str(&self) -> String;
+    fn type_str(&self) -> String;
+}
+
+pub trait ABIView {
+    fn types(&self) -> &[AbiTypeDef];
+    fn structs(&self) -> &[AbiStruct];
+    fn variants(&self) -> &[AbiVariant];
+    fn tables(&self) -> &[impl HasNameAndType]; // generic over ABI and ShipABI table
+}
+
+pub fn resolve_type<T: ABIView>(abi: &T, type_name: &str) -> Option<(ABIResolvedType, String)> {
+    if STD_TYPES.contains(&type_name) {
+        return Some((ABIResolvedType::Standard(type_name.to_string()), type_name.to_string()));
     }
 
-    pub fn resolve_type(&self, type_name: &str) -> Option<(ABIResolvedType, String)> {
-        // Given an ABI type as a string process its modifiers (?, [], $), resolve
-        // type aliases, and find struct or variant, the second value returned is
-        // the type resolved without its modifiers.
+    let mut _type = type_name.to_string();
 
-        // is type part of std types?
-        if STD_TYPES.contains(&type_name) {
-            return Some((ABIResolvedType::Standard(type_name.to_string()), type_name.to_string()));
-        }
+    // Handle modifiers
+    if _type.ends_with("?") {
+        _type.pop();
+        let (resolved, _) = resolve_type(abi, &_type)?;
+        return Some((ABIResolvedType::Optional(Box::new(resolved)), _type));
+    }
+    if _type.ends_with("[]") {
+        _type.truncate(_type.len().saturating_sub(2));
+        let (resolved, _) = resolve_type(abi, &_type)?;
+        return Some((ABIResolvedType::Array(Box::new(resolved)), _type));
+    }
+    if _type.ends_with("$") {
+        _type.pop();
+        let (resolved, _) = resolve_type(abi, &_type)?;
+        return Some((ABIResolvedType::Extension(Box::new(resolved)), _type));
+    }
 
-        // _type will change as type_name gets resolved
-        let mut _type = type_name.to_string();
+    if let Some(type_meta) = abi.types().iter().find(|t| t.new_type_name == type_name) {
+        _type = type_meta.r#type.clone();
+    }
 
-        // is optional?
-        if _type.ends_with("?") {
-            _type.pop();
-            let (resolved, _) = self.resolve_type(&_type)?;
-            return Some((ABIResolvedType::Optional(Box::from(resolved)), _type));
-        }
+    if let Some(var_meta) = abi.variants().iter().find(|v| v.name == _type) {
+        return Some((ABIResolvedType::Variant(var_meta.clone()), _type));
+    }
 
-        // is array?
-        if _type.ends_with("[]") {
-            _type.truncate(_type.len().saturating_sub(2));
-            let (resolved, _) = self.resolve_type(&_type)?;
-            return Some((ABIResolvedType::Array(Box::from(resolved)), _type));
-        }
+    if let Some(table) = abi.tables().iter().find(|t| t.name_str() == _type) {
+        return resolve_type(abi, &table.type_str());
+    }
 
-        // is extension?
-        if _type.ends_with("$") {
-            _type.pop();
-            let (resolved, _) = self.resolve_type(&_type)?;
-            return Some((ABIResolvedType::Extension(Box::from(resolved)), _type));
-        }
-
-        // is type alias?
-        let maybe_type_meta = self.types.iter().find(|t| t.new_type_name == type_name);
-        if let Some(type_meta) = maybe_type_meta {
-            _type = type_meta.r#type.clone();
-        }
-
-        // is variant?
-        let maybe_var_meta = self.variants.iter().find(|v| v.name == _type);
-        if let Some(var_meta) = maybe_var_meta {
-            return Some((ABIResolvedType::Variant(var_meta.clone()), _type));
-        }
-
-        // is table?
-        let maybe_table_meta = self.tables.iter().find(|t| t.name == _type);
-        if let Some(table_meta) = maybe_table_meta {
-            return Some(self.resolve_type(&table_meta.r#type)?);
-        }
-
-        // is struct?
-        let maybe_struct_meta = self.structs.iter().find(|s| s.name == _type);
-        match maybe_struct_meta {
-            Some(struct_meta) => {
-                let mut expanded_struct = struct_meta.clone();
-                if !struct_meta.base.is_empty() {
-                    // recursive solve base
-                    match self.resolve_type(struct_meta.base.as_str()) {
-                        Some((base_meta, _)) => {
-                            match base_meta {
-                                ABIResolvedType::Struct(base_struct) => {
-                                    for base_field in base_struct.fields.iter().rev() {
-                                        expanded_struct.fields.insert(0, base_field.clone());
-                                    }
-                                }
-                                _ => ()
-                            }
-                        },
-                        None => ()
+    if let Some(struct_meta) = abi.structs().iter().find(|s| s.name == _type) {
+        let mut expanded_struct = struct_meta.clone();
+        if !struct_meta.base.is_empty() {
+            if let Some((base_meta, _)) = resolve_type(abi, struct_meta.base.as_str()) {
+                if let ABIResolvedType::Struct(base_struct) = base_meta {
+                    for field in base_struct.fields.iter().rev() {
+                        expanded_struct.fields.insert(0, field.clone());
                     }
                 }
-                Some((ABIResolvedType::Struct(expanded_struct), _type))
-            },
-            None => None
+            }
         }
+        return Some((ABIResolvedType::Struct(expanded_struct), _type));
     }
+
+    None
 }
 
 #[derive(Debug, Clone, Default, Eq, PartialEq, Serialize, Deserialize, StructPacker)]
@@ -216,8 +206,11 @@ pub struct AbiAction {
 
 #[derive(Debug, Clone, Default, Eq, PartialEq, Serialize, Deserialize, StructPacker)]
 pub struct AbiTable {
-    #[serde(default)]
-    pub name: String,
+    #[serde(
+        serialize_with = "serialize_name",
+        deserialize_with = "deserialize_name"
+    )]
+    pub name: Name,
     #[serde(default)]
     pub index_type: String,
     #[serde(default)]
@@ -241,4 +234,123 @@ pub struct AbiActionResult {
     )]
     pub name: Name,
     pub result_type: String,
+}
+
+#[derive(Debug, Clone, Default, Eq, PartialEq, Serialize, Deserialize, StructPacker)]
+pub struct AbiErrorMessage {
+    pub error_code: u64,
+    pub error_msg: String,
+}
+
+/*
+    Ship ABI:
+
+    State history plugin's first message on connection is the "standard" ABI encoded as a
+    JSON string, the structure is exactly the same as a ABI encoded in JSON except it
+    uses String instead of Name for some values allowing it to have this table definition
+
+    "tables": [
+        {
+            "name": "account_metadata",
+            "type": "account_metadata",
+            "key_names": [
+                "name"
+            ]
+        }
+    ]
+
+    In an ABI that table entry would fail cause "name" key is of type Name
+ */
+
+#[derive(Debug, Clone, Default, Eq, PartialEq, Serialize, Deserialize, StructPacker)]
+pub struct ShipAbiAction {
+    pub name: String,
+    pub r#type: String,
+    pub ricardian_contract: String,
+}
+
+#[derive(Debug, Clone, Default, Eq, PartialEq, Serialize, Deserialize, StructPacker)]
+pub struct ShipAbiTable {
+    pub name: String,
+    #[serde(default)]
+    pub index_type: String,
+    #[serde(default)]
+    pub key_names: Vec<String>,
+    #[serde(default)]
+    pub key_types: Vec<String>,
+    pub r#type: String,
+}
+
+#[derive(Debug, Clone, Default, Eq, PartialEq, Serialize, Deserialize, StructPacker)]
+pub struct ShipAbiActionResult {
+    pub name: Name,
+    pub result_type: String,
+}
+
+#[derive(Debug, Clone, Default, Eq, PartialEq, Serialize, Deserialize, StructPacker)]
+pub struct ShipABI {
+    pub version: String,
+    #[serde(default)]
+    pub types: Vec<AbiTypeDef>,
+    #[serde(default)]
+    pub structs: Vec<AbiStruct>,
+    #[serde(default)]
+    pub actions: Vec<ShipAbiAction>,
+    #[serde(default)]
+    pub tables: Vec<ShipAbiTable>,
+    #[serde(default)]
+    pub ricardian_clauses: Vec<AbiClause>,
+    #[serde(default)]
+    error_messages: Vec<AbiErrorMessage>,
+    #[serde(default)]
+    abi_extensions: Vec<String>,
+    #[serde(default)]
+    pub variants: Vec<AbiVariant>,
+    #[serde(default)]
+    pub action_results: Vec<ShipAbiActionResult>,
+}
+
+impl ShipABI {
+    pub fn from_string(str: &str) -> Result<Self, String> {
+        let abi = serde_json::from_str::<ShipABI>(str)
+            .map_err(|e| e.to_string())?;
+
+        Ok(abi)
+    }
+}
+
+impl HasNameAndType for AbiTable {
+    fn name_str(&self) -> String { self.name.to_string() }
+    fn type_str(&self) -> String { self.r#type.clone() }
+}
+
+impl HasNameAndType for ShipAbiTable {
+    fn name_str(&self) -> String { self.name.clone() }
+    fn type_str(&self) -> String { self.r#type.clone() }
+}
+
+impl ABIView for ABI {
+    fn types(&self) -> &[AbiTypeDef] { &self.types }
+    fn structs(&self) -> &[AbiStruct] { &self.structs }
+    fn variants(&self) -> &[AbiVariant] { &self.variants }
+    fn tables(&self) -> &[impl HasNameAndType] { &self.tables }
+}
+
+impl ABIView for ShipABI {
+    fn types(&self) -> &[AbiTypeDef] { &self.types }
+    fn structs(&self) -> &[AbiStruct] { &self.structs }
+    fn variants(&self) -> &[AbiVariant] { &self.variants }
+    fn tables(&self) -> &[impl HasNameAndType] { &self.tables }
+}
+
+impl ABITypeResolver for ABI {
+    fn resolve_type(&self, type_name: &str) -> Option<(ABIResolvedType, String)> {
+        resolve_type(self, type_name)
+    }
+}
+
+impl ABITypeResolver for ShipABI {
+    fn resolve_type(&self, type_name: &str) -> Option<(ABIResolvedType, String)> {
+        resolve_type(self, type_name)
+    }
 }

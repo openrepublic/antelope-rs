@@ -1,5 +1,5 @@
 use thiserror::Error;
-use crate::chain::abi::{ABIResolvedType, ABI};
+use crate::chain::abi::{ABIResolvedType, ABITypeResolver};
 use crate::chain::asset::{Asset, ExtendedAsset, Symbol, SymbolCode};
 use crate::chain::checksum::{Checksum160, Checksum256, Checksum512};
 use crate::chain::name::Name;
@@ -29,8 +29,8 @@ pub enum DecodeABITypeError {
     UnknownVariantIndex(u32),
 }
 
-pub fn decode_abi_type(
-    abi: &ABI,
+pub fn decode_abi_type<T: ABITypeResolver>(
+    abi: &T,
     field_type: &str,
     buf_size: usize,
     decoder: &mut Decoder,
