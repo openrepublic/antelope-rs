@@ -22,10 +22,7 @@ use crate::{
         transaction::{CompressionType, PackedTransaction, SignedTransaction},
     },
     name,
-    serializer::{
-        Decoder, Packer,
-        formatter::{JSONObject, ValueTo}
-    },
+    serializer::{Decoder, Packer},
     util::hex_to_bytes,
 };
 
@@ -309,21 +306,43 @@ impl<T: Provider> ChainAPI<T> {
                 )))
             }
         };
-        let json: Value = serde_json::from_str(response.as_str()).unwrap();
-        let response_obj = JSONObject::new(json);
-        let more = response_obj.get_bool("more")?;
-        let next_key_str = response_obj.get_string("next_key")?;
-        let rows_value = response_obj.get_vec("rows")?;
+        let json: Value = serde_json::from_str(response.as_str())
+            .map_err(|e| ClientError::encoding(e.to_string()))?;
+
+        let response_obj = json.as_object()
+            .ok_or(ClientError::encoding(
+                "Failed to cast serde_json::Value to object map".to_string()
+            ))?;
+
+        let more = response_obj.get("more")
+            .ok_or(ClientError::encoding("Response object missing \"more\" field".to_string()))?
+            .as_bool()
+            .ok_or(ClientError::encoding("Response more field not a boolean".to_string()))?;
+
+        let next_key_str = response_obj.get("next_key")
+            .ok_or(ClientError::encoding("Response object missing \"next_key\" field".to_string()))?
+            .as_str()
+            .ok_or(ClientError::encoding("Response next_key field not a string".to_string()))?
+            .to_string();
+
+        let rows_value = response_obj.get("rows")
+            .ok_or(ClientError::encoding("Response object missing \"rows\" field".to_string()))?
+            .as_array()
+            .ok_or(ClientError::encoding("Response rows field not an array".to_string()))?
+            .clone();
+
         let mut rows: Vec<P> = Vec::with_capacity(rows_value.len());
         for encoded_row in rows_value {
-            let row_bytes_hex = &ValueTo::string(Some(encoded_row))?;
-            let row_bytes = hex_to_bytes(row_bytes_hex);
+            let row_hex_str = encoded_row
+                .as_str()
+                .ok_or(ClientError::encoding("Row entry is not a string".to_string()))?;
+
+            let row_bytes = hex_to_bytes(row_hex_str);
             let mut decoder = Decoder::new(&row_bytes);
             let mut row = P::default();
 
             decoder.unpack(&mut row)
-                .map_err(|e| ClientError::ENCODING(
-                    EncodingError::new(e.reason.clone())))?;
+                .map_err(|e| ClientError::encoding(e.to_string()))?;
 
             rows.push(row);
         }
