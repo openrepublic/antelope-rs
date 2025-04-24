@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::serializer::{Encoder, Packer};
+use crate::serializer::{Encoder, Packer, PackerError};
 
 #[derive(Copy, Clone, Eq, PartialEq, Default, Debug, Serialize, Deserialize)]
 pub struct VarUint32 {
@@ -59,7 +59,7 @@ impl Packer for VarUint32 {
     }
 
     /// Deserialize the VarUint32 value from the given byte slice.
-    fn unpack(&mut self, data: &[u8]) -> usize {
+    fn unpack(&mut self, data: &[u8]) -> Result<usize, PackerError> {
         let mut by: u32 = 0;
         let mut value: u32 = 0;
         let mut length: usize = 0;
@@ -73,14 +73,14 @@ impl Packer for VarUint32 {
             assert!(by < 32, "malformed varuint32 data");
         }
         self.n = value;
-        length
+        Ok(length)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::chain::Encoder;
+    use crate::serializer::Encoder;
 
     #[test]
     fn test_varuint32_pack_unpack() {

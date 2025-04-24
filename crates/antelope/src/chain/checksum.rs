@@ -8,9 +8,10 @@ use serde_big_array::BigArray;
 use sha2::{Sha256, Sha512};
 
 use crate::{
-    chain::{Encoder, Packer},
-    util::{bytes_to_hex, hex_to_bytes, slice_copy},
+    check_unpack_len,
+    util::{bytes_to_hex, hex_to_bytes, slice_copy}
 };
+use crate::serializer::{Encoder, Packer, PackerError};
 
 #[derive(Clone, Copy, Eq, PartialEq, Default, Serialize, Deserialize, Debug)]
 pub struct Checksum160 {
@@ -62,11 +63,10 @@ impl Packer for Checksum160 {
         pack_checksum(self.size(), &self.data, enc)
     }
 
-    fn unpack(&mut self, raw: &[u8]) -> usize {
-        let size = self.size();
-        assert!(raw.len() >= size, "Checksum160.unpack: buffer overflow!");
-        slice_copy(&mut self.data, &raw[..size]);
-        size
+    fn unpack(&mut self, raw: &[u8]) -> Result<usize, PackerError> {
+        check_unpack_len!(self, raw, 20);
+        slice_copy(&mut self.data, &raw[..20]);
+        Ok(20)
     }
 }
 
@@ -169,11 +169,10 @@ impl Packer for Checksum256 {
         pack_checksum(self.size(), &self.data, enc)
     }
 
-    fn unpack(&mut self, raw: &[u8]) -> usize {
-        let size = self.size();
-        assert!(raw.len() >= size, "Checksum256.unpack: buffer overflow!");
-        slice_copy(&mut self.data, &raw[..size]);
-        size
+    fn unpack(&mut self, raw: &[u8]) -> Result<usize, PackerError> {
+        check_unpack_len!(self, raw, 32);
+        slice_copy(&mut self.data, &raw[..32]);
+        Ok(32)
     }
 }
 
@@ -229,11 +228,10 @@ impl Packer for Checksum512 {
         pack_checksum(self.size(), &self.data, enc)
     }
 
-    fn unpack(&mut self, raw: &[u8]) -> usize {
-        let size = self.size();
-        assert!(raw.len() >= size, "Checksum512.unpack: buffer overflow!");
-        slice_copy(&mut self.data, &raw[..size]);
-        size
+    fn unpack(&mut self, raw: &[u8]) -> Result<usize, PackerError> {
+        check_unpack_len!(self, raw, 64);
+        slice_copy(&mut self.data, &raw[..64]);
+        Ok(64)
     }
 }
 

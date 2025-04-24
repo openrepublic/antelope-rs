@@ -1,11 +1,12 @@
 use crate::{
     base58::{decode_public_key, encode_ripemd160_check},
-    chain::{key_type::KeyType, Decoder, Encoder, Packer},
+    chain::{key_type::KeyType},
     util::bytes_to_hex,
 };
 use serde::{Deserialize, Deserializer, Serialize};
 use std::fmt;
 use std::fmt::{Display, Formatter};
+use crate::serializer::{Decoder, Encoder, Packer, PackerError};
 
 #[derive(Clone, Debug, Eq, PartialEq, Default, Serialize, Deserialize)]
 pub struct PublicKey {
@@ -27,17 +28,17 @@ impl Packer for PublicKey {
         enc.get_size() - pos
     }
 
-    fn unpack(&mut self, data: &[u8]) -> usize {
+    fn unpack(&mut self, data: &[u8]) -> Result<usize, PackerError> {
         let mut dec = Decoder::new(data);
         let mut key_type = KeyType::default();
-        dec.unpack(&mut key_type);
+        dec.unpack(&mut key_type)?;
         self.value.reserve(32usize);
         for _ in 0..33 {
             let mut v: u8 = Default::default();
-            dec.unpack(&mut v);
+            dec.unpack(&mut v)?;
             self.value.push(v);
         }
-        dec.get_pos()
+        Ok(dec.get_pos())
     }
 }
 

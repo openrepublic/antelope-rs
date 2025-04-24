@@ -3,7 +3,8 @@ use serde::{de, Deserialize, Deserializer, Serialize};
 use std::fmt;
 use std::str::FromStr;
 
-use crate::chain::{Encoder, Packer};
+use crate::check_unpack_len;
+use crate::serializer::{Encoder, Packer, PackerError};
 
 #[derive(Copy, Clone, Default, PartialEq, Serialize, Deserialize, Debug)]
 pub struct TimePoint {
@@ -45,11 +46,8 @@ impl Packer for TimePoint {
         self.elapsed.pack(enc)
     }
 
-    fn unpack(&mut self, raw: &[u8]) -> usize {
-        assert!(
-            raw.len() >= self.size(),
-            "TimePoint.unpack: buffer overflow!"
-        );
+    fn unpack(&mut self, raw: &[u8]) -> Result<usize, PackerError> {
+        check_unpack_len!(self, raw, 8);
         self.elapsed.unpack(raw)
     }
 }
@@ -78,11 +76,8 @@ impl Packer for TimePointSec {
         self.seconds.pack(enc)
     }
 
-    fn unpack(&mut self, raw: &[u8]) -> usize {
-        assert!(
-            raw.len() >= self.size(),
-            "TimePointSec.unpack: buffer overflow!"
-        );
+    fn unpack(&mut self, raw: &[u8]) -> Result<usize, PackerError> {
+        check_unpack_len!(self, raw, 4);
         self.seconds.unpack(raw)
     }
 }

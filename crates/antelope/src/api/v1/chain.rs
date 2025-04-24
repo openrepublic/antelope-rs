@@ -20,10 +20,12 @@ use crate::{
     chain::{
         name::Name,
         transaction::{CompressionType, PackedTransaction, SignedTransaction},
-        Decoder, Packer,
     },
     name,
-    serializer::formatter::{JSONObject, ValueTo},
+    serializer::{
+        Decoder, Packer,
+        formatter::{JSONObject, ValueTo}
+    },
     util::hex_to_bytes,
 };
 
@@ -318,7 +320,11 @@ impl<T: Provider> ChainAPI<T> {
             let row_bytes = hex_to_bytes(row_bytes_hex);
             let mut decoder = Decoder::new(&row_bytes);
             let mut row = P::default();
-            decoder.unpack(&mut row);
+
+            decoder.unpack(&mut row)
+                .map_err(|e| ClientError::ENCODING(
+                    EncodingError::new(e.reason.clone())))?;
+
             rows.push(row);
         }
 

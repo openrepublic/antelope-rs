@@ -1,4 +1,4 @@
-use antelope::chain::{Decoder, Encoder};
+use antelope::serializer::{Decoder, Encoder};
 use antelope::util::bytes_to_hex;
 use antelope::{
     chain::{key_type::KeyType, private_key::PrivateKey, public_key::PublicKey},
@@ -81,7 +81,7 @@ fn public_key_encoding() {
     let data_bytes = hex_to_bytes(encoded_key.as_str());
     let mut decoder = Decoder::new(data_bytes.as_slice());
     let mut decoded_key = PublicKey::default();
-    decoder.unpack(&mut decoded_key);
+    decoder.unpack(&mut decoded_key).unwrap();
     assert_eq!(decoded_key.to_string(), public_key.to_string());
 }
 

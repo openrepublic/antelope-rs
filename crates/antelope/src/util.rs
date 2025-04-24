@@ -37,3 +37,28 @@ pub fn zlib_compress(bytes: &[u8]) -> Result<Vec<u8>, String> {
     }
     Ok(compressed_bytes.unwrap())
 }
+
+#[macro_export]
+macro_rules! define_error {
+    ($crate_path:path, $name:ident) => {
+        #[derive(Debug, ::thiserror::Error)]
+        #[error("{reason}")]
+        pub struct $name {
+            pub reason: String,
+        }
+
+        impl $name {
+            pub fn new(args: impl ::core::fmt::Display) -> Self {
+                Self {
+                    reason: args.to_string(),
+                }
+            }
+
+            pub fn fmt(args: ::core::fmt::Arguments<'_>) -> Self {
+                Self {
+                    reason: args.to_string(),
+                }
+            }
+        }
+    };
+}

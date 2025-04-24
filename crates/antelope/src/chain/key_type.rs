@@ -1,8 +1,12 @@
 use std::fmt::{Display, Formatter};
 
 use serde::{Deserialize, Serialize};
-
-use crate::chain::{Encoder, Packer};
+use crate::check_unpack_len;
+use crate::serializer::{
+    PackerError,
+    Encoder,
+    Packer,
+};
 
 #[derive(Clone, Debug, Copy, Eq, PartialEq, Default, Serialize, Deserialize)]
 pub enum KeyType {
@@ -92,12 +96,9 @@ impl Packer for KeyType {
         self.size()
     }
 
-    fn unpack(&mut self, data: &[u8]) -> usize {
-        assert!(
-            data.len() >= self.size(),
-            "KeyType::unpack: buffer overflow"
-        );
+    fn unpack(&mut self, data: &[u8]) -> Result<usize, PackerError> {
+        check_unpack_len!(self, data, 1);
         *self = KeyType::from_index(data[0]).unwrap();
-        self.size()
+        Ok(1)
     }
 }

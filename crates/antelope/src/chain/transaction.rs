@@ -7,8 +7,9 @@ use serde_json::{json, Value};
 use crate::{
     chain::{
         action::Action, checksum::Checksum256, signature::Signature, time::TimePointSec,
-        varint::VarUint32, Decoder, Encoder, Packer,
+        varint::VarUint32
     },
+    serializer::{Decoder, Encoder, Packer, PackerError},
     util::{bytes_to_hex, zlib_compress},
 };
 

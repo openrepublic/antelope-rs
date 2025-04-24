@@ -3,7 +3,7 @@ use crate::chain::authority::Authority;
 use crate::chain::binary_extension::BinaryExtension;
 use crate::chain::name::Name;
 use crate::chain::public_key::PublicKey;
-use crate::chain::{Decoder, Encoder, Packer};
+use crate::serializer::{Decoder, Encoder, Packer, PackerError};
 use antelope_client_macros::StructPacker;
 
 pub struct CreateAccountParams {

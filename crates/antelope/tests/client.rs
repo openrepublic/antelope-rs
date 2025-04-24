@@ -8,7 +8,7 @@ use antelope::{
     },
     chain::{asset::Asset, checksum::Checksum256, name::Name},
     name,
-    serializer::{Decoder, Encoder, Packer},
+    serializer::{Decoder, Encoder, Packer, PackerError},
     StructPacker,
 };
 

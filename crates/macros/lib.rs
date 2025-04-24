@@ -4,10 +4,7 @@ use syn::{parse_macro_input, DeriveInput, Fields};
 
 #[proc_macro_derive(StructPacker)]
 pub fn struct_packer_macro(input: TokenStream) -> TokenStream {
-    // Parse the input tokens into a syntax tree
     let input = parse_macro_input!(input as DeriveInput);
-
-    // Build the trait implementation
     let name = input.ident;
     let fields = match input.data {
         syn::Data::Struct(s) => match s.fields {
@@ -35,12 +32,11 @@ pub fn struct_packer_macro(input: TokenStream) -> TokenStream {
     let unpack_fields = fields.iter().map(|f| {
         let field_name = &f.ident;
         quote! {
-            dec.unpack(&mut self.#field_name);
+            dec.unpack(&mut self.#field_name)?;
         }
     });
 
     let expanded = quote! {
-        // Generate the code to be added
         impl Packer for #name {
             fn size(&self) -> usize {
                 let mut _size: usize = 0;
@@ -54,15 +50,14 @@ pub fn struct_packer_macro(input: TokenStream) -> TokenStream {
                 enc.get_size() - pos
             }
 
-            fn unpack(&mut self, data: &[u8]) -> usize {
+            fn unpack(&mut self, data: &[u8]) -> Result<usize, PackerError> {
                 let mut dec = Decoder::new(data);
                 #(#unpack_fields)*
-                dec.get_pos()
+                Ok(dec.get_pos())
             }
         }
     };
 
-    // Return the generated implementation
     TokenStream::from(expanded)
 }
 
@@ -107,7 +102,7 @@ pub fn enum_packer_macro(input: TokenStream) -> TokenStream {
                         let ty = &fields.unnamed.first().unwrap().ty;
                         quote! {
                             let mut v: #ty = Default::default();
-                            dec.unpack(&mut v);
+                            dec.unpack(&mut v)?;
                             *self = #name::#variant_ident(v);
                         }
                     }
@@ -125,7 +120,6 @@ pub fn enum_packer_macro(input: TokenStream) -> TokenStream {
 
             quote! {
                 impl Default for #name {
-                    #[doc = r""]
                     #[inline]
                     fn default() -> Self {
                         #name::#default_variant_ident(Default::default())
@@ -141,7 +135,7 @@ pub fn enum_packer_macro(input: TokenStream) -> TokenStream {
                         _size
                     }
 
-                    fn pack(&self, enc: &mut ::antelope::chain::Encoder) -> usize {
+                    fn pack(&self, enc: &mut ::antelope::serializer::Encoder) -> usize {
                         let pos = enc.get_size();
                         match self {
                             #( #pack_variants ),*
@@ -149,16 +143,16 @@ pub fn enum_packer_macro(input: TokenStream) -> TokenStream {
                         enc.get_size() - pos
                     }
 
-                    fn unpack<'a>(&mut self, data: &'a [u8]) -> usize {
-                        let mut dec = ::antelope::chain::Decoder::new(data);
+                    fn unpack<'a>(&mut self, data: &'a [u8]) -> Result<usize, ::antelope::serializer::packer::PackerError> {
+                        let mut dec = ::antelope::serializer::Decoder::new(data);
                         let mut variant_type_index: u8 = 0;
-                        dec.unpack(&mut variant_type_index);
+                        dec.unpack(&mut variant_type_index)?;
                         let variant_type_index = variant_type_index as usize;
                         match variant_type_index {
                             #( #unpack_variants ),*
-                            _ => { panic!("bad variant index!"); }
+                            _ => return Err(::antelope::packer_error!("bad variant index: {}", variant_type_index)),
                         }
-                        dec.get_pos()
+                        Ok(dec.get_pos())
                     }
                 }
             }

@@ -16,11 +16,12 @@ use crate::{
     chain::{
         key_type::{KeyType, KeyTypeTrait},
         public_key::PublicKey,
-        Encoder, Packer,
     },
+    check_unpack_len,
     crypto::{recover::recover_message, verify::verify_message},
-    util::slice_copy,
+    util::slice_copy
 };
+use crate::serializer::{Encoder, Packer, PackerError};
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Signature {
@@ -201,7 +202,7 @@ impl Packer for Signature {
         self.size()
     }
 
-    fn unpack(&mut self, data: &[u8]) -> usize {
+    fn unpack(&mut self, data: &[u8]) -> Result<usize, PackerError> {
         self.key_type = KeyType::from_index(data[0]).unwrap();
         match self.key_type {
             KeyType::K1 | KeyType::R1 => {
@@ -211,10 +212,10 @@ impl Packer for Signature {
                 let mut size = 66; // size to start = 1 byte for key type, 65 bytes for compact signature
                 let mut auth_data = VarUint32::default();
                 // unpack() returns how many bytes were read to unpack the value
-                size += auth_data.unpack(&data[size..]); // after the compact sig comes a varuint32 to tell us the size of the auth data
+                size += auth_data.unpack(&data[size..])?; // after the compact sig comes a varuint32 to tell us the size of the auth data
                 size += auth_data.value() as usize; // add the auth data size
                 let mut client_json = VarUint32::default();
-                size += client_json.unpack(&data[size..]); // read the varuint32 size of the client_json
+                size += client_json.unpack(&data[size..])?; // read the varuint32 size of the client_json
                 size += client_json.value() as usize; // add the client_json size
                                                       // set value to be the whole payload (after the key type byte):
                                                       //      compact sig,
@@ -225,8 +226,8 @@ impl Packer for Signature {
                 self.value = data[1..size].to_vec();
             }
         }
-        let size = self.size();
-        assert!(data.len() >= size, "Signature::unpack: buffer overflow");
-        self.size()
+        let size = 1 + self.value.len();
+        check_unpack_len!(self, data, size);
+        Ok(size)
     }
 }

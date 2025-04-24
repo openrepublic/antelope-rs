@@ -3,9 +3,9 @@ use antelope::api::system::structs::SetCodeAction;
 use antelope::chain::abi::ABI;
 use antelope::chain::binary_extension::BinaryExtension;
 use antelope::{
-    chain::{name::Name, signature::Signature, Decoder, Encoder},
+    chain::{name::Name, signature::Signature},
     name,
-    serializer::Packer,
+    serializer::{Encoder, Decoder, Packer, PackerError},
     util,
     util::{bytes_to_hex, hex_to_bytes},
 };
@@ -63,7 +63,7 @@ fn bytes() {
     let data_bytes = hex_to_bytes(data);
     let mut decoder = Decoder::new(data_bytes.as_slice());
     let mut bytes2 = Vec::<u8>::default();
-    decoder.unpack(&mut bytes2);
+    decoder.unpack(&mut bytes2).unwrap();
     assert_eq!(bytes, bytes2);
 }
 
@@ -76,7 +76,7 @@ fn name() {
     let data_bytes = hex_to_bytes(data);
     let mut decoder = Decoder::new(data_bytes.as_slice());
     let mut name2 = Name::default();
-    decoder.unpack(&mut name2);
+    decoder.unpack(&mut name2).unwrap();
     assert_eq!(name1, name2);
     let name3 = Name::from_u64(6712742083569909760);
     assert_eq!(name1, name3);
@@ -310,7 +310,7 @@ fn signature() {
 
     let mut decoder = Decoder::new(data.as_slice());
     let decoded_sig = &mut Signature::default();
-    let decoded_size = decoder.unpack(decoded_sig);
+    let decoded_size = decoder.unpack(decoded_sig).unwrap();
     assert_eq!(decoded_size, 66);
     assert_eq!(decoded_sig.to_string(), json);
 }
@@ -326,7 +326,7 @@ fn signature_wa() {
 
     let mut decoder = Decoder::new(data.as_slice());
     let decoded_sig = &mut Signature::default();
-    let decoded_size = decoder.unpack(decoded_sig);
+    let decoded_size = decoder.unpack(decoded_sig).unwrap();
     let decoded_sig_str = decoded_sig.to_string();
     assert_eq!(decoded_size, 220);
     assert_eq!(decoded_sig_str, sig_str);
@@ -450,7 +450,7 @@ fn variant() {
     let data_bytes = hex_to_bytes(data);
     let mut decoder = Decoder::new(data_bytes.as_slice());
     let decoded_uint8 = &mut MyVariant::default();
-    let decoded_size = decoder.unpack(decoded_uint8);
+    let decoded_size = decoder.unpack(decoded_uint8).unwrap();
     assert_eq!(decoded_size, 2);
     match decoded_uint8 {
         MyVariant::MyUint8(value) => assert_eq!(value, &255),
@@ -466,7 +466,7 @@ fn variant() {
     let data_bytes = hex_to_bytes(data);
     let mut decoder = Decoder::new(data_bytes.as_slice());
     let decoded_opt_struct = &mut MyVariant::default();
-    let decoded_size = decoder.unpack(decoded_opt_struct);
+    let decoded_size = decoder.unpack(decoded_opt_struct).unwrap();
     assert_eq!(decoded_size, 3);
     match decoded_opt_struct {
         MyVariant::StructOption(opt) => {
@@ -1239,7 +1239,7 @@ fn abi_def() {
     let data_bytes = hex_to_bytes(abi_hex.as_str());
     let mut decoder = Decoder::new(data_bytes.as_slice());
     let mut abi_decoded = ABI::default();
-    decoder.unpack(&mut abi_decoded);
+    decoder.unpack(&mut abi_decoded).unwrap();
 
     assert_eq!(abi.types, abi_decoded.types);
     assert_eq!(abi.structs, abi_decoded.structs);

@@ -5,8 +5,8 @@ use std::{
 
 use serde::de::SeqAccess;
 use serde::{Deserialize, Deserializer, Serialize};
-
-use crate::serializer::{Encoder, Packer};
+use crate::check_unpack_len;
+use crate::serializer::{Encoder, Packer, PackerError};
 
 const INVALID_NAME_CHAR: u8 = 0xffu8;
 
@@ -226,10 +226,10 @@ impl Packer for Name {
         self.n.pack(enc)
     }
 
-    fn unpack(&mut self, raw: &[u8]) -> usize {
-        assert!(raw.len() >= 8, "Name.unpack: buffer overflow!");
-        self.n = u64::from_ne_bytes(raw[0..8].try_into().unwrap());
-        8
+    fn unpack(&mut self, raw: &[u8]) -> Result<usize, PackerError> {
+        check_unpack_len!(self, raw, 8);
+        self.n = u64::from_le_bytes(raw[0..8].try_into().unwrap());
+        Ok(8)
     }
 }
 

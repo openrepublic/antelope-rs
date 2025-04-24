@@ -1,4 +1,4 @@
-use crate::chain::{Decoder, Encoder, Packer};
+use crate::serializer::{Decoder, Encoder, Packer, PackerError};
 use antelope_client_macros::StructPacker;
 use serde::{
     de::{self, Visitor},

@@ -2,8 +2,9 @@ use core::ops;
 use serde::{de, Deserialize, Deserializer, Serialize};
 use std::fmt;
 use std::fmt::{Display, Formatter};
-
-use crate::chain::{name::Name, Decoder, Encoder, Packer};
+use crate::chain::name::Name;
+use crate::{check_unpack_len, define_error, packer_error};
+use crate::serializer::{Decoder, Encoder, Packer, PackerError};
 
 const MAX_AMOUNT: i64 = (1 << 62) - 1;
 const MAX_PRECISION: u8 = 18;
@@ -98,14 +99,13 @@ impl Packer for SymbolCode {
         self.value.pack(enc)
     }
 
-    fn unpack(&mut self, data: &[u8]) -> usize {
-        assert!(
-            data.len() >= self.size(),
-            "SymbolCode.unpack: buffer overflow"
-        );
-        self.value.unpack(data);
-        assert!(self.is_valid(), "SymbolCode.unpack:: bad symbol code");
-        8
+    fn unpack(&mut self, data: &[u8]) -> Result<usize, PackerError> {
+        check_unpack_len!(self, data, 8);
+        self.value.unpack(data)?;
+        if !self.is_valid() {
+            return Err(packer_error!("bad symbol code!"));
+        }
+        Ok(8)
     }
 }
 
@@ -170,11 +170,10 @@ impl Packer for Symbol {
         self.value.pack(enc)
     }
 
-    fn unpack(&mut self, data: &[u8]) -> usize {
-        assert!(data.len() >= self.size(), "Symbol.unpack: buffer overflow");
-        self.value.unpack(data);
-        assert!(self.code().is_valid(), "Symbol.unpack: bad symbol value");
-        8
+    fn unpack(&mut self, data: &[u8]) -> Result<usize, PackerError> {
+        check_unpack_len!(self, data, 8);
+        self.value.unpack(data)?;
+        Ok(8)
     }
 }
 
@@ -183,6 +182,8 @@ pub struct Asset {
     amount: i64,
     symbol: Symbol,
 }
+
+define_error!(crate::chain::asset, AssetOpError);
 
 #[derive(Copy, Clone, Eq, PartialEq)]
 enum AssetStringParseStatus {
@@ -322,6 +323,34 @@ impl Asset {
     pub fn is_valid(&self) -> bool {
         is_amount_within_range(self.amount) && self.symbol().is_valid()
     }
+
+    pub fn try_add(&self, other: Asset) -> Result<Asset, AssetOpError> {
+        if self.symbol != other.symbol {
+            return Err(AssetOpError::new(format!("addition symbol mismatch: {} != {}", self.symbol, other.symbol)));
+        }
+        let amount = self.amount + other.amount;
+        if amount > MAX_AMOUNT {
+            return Err(AssetOpError::new(format!("addition overflow: {} + {} > {}", self.amount, amount, MAX_AMOUNT)));
+        }
+        if amount < -MAX_AMOUNT {
+            return Err(AssetOpError::new(format!("addition underflow: {} + {} < {}", self.amount, amount, -MAX_AMOUNT)));
+        }
+        Ok(Asset::new(amount, self.symbol))
+    }
+
+    pub fn try_sub(&self, other: Asset) -> Result<Asset, AssetOpError> {
+        if self.symbol != other.symbol {
+            return Err(AssetOpError::new(format!("subtraction symbol mismatch: {} != {}", self.symbol, other.symbol)));
+        }
+        let amount = self.amount - other.amount;
+        if amount > MAX_AMOUNT {
+            return Err(AssetOpError::new(format!("subtraction overflow: {} - {} > {}", self.amount, amount, MAX_AMOUNT)));
+        }
+        if amount < -MAX_AMOUNT {
+            return Err(AssetOpError::new(format!("subtraction underflow: {} - {} < {}", self.amount, amount, -MAX_AMOUNT)));
+        }
+        Ok(Asset::new(amount, self.symbol))
+    }
 }
 
 impl Display for Asset {
@@ -340,14 +369,8 @@ impl ops::Add for Asset {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
-        assert!(self.symbol == rhs.symbol, "add: bad symbol");
-        let amount = self.amount + rhs.amount;
-        assert!(amount >= -MAX_AMOUNT, "addition underflow");
-        assert!(amount <= MAX_AMOUNT, "addition overflow");
-        Self {
-            amount,
-            symbol: self.symbol,
-        }
+        self.try_add(rhs)
+            .unwrap_or_else(|e| panic!("{:?}", e))
     }
 }
 
@@ -361,14 +384,8 @@ impl ops::Sub for Asset {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        assert!(self.symbol == rhs.symbol, "sub: bad symbol");
-        let amount = self.amount() - rhs.amount();
-        assert!(amount >= -MAX_AMOUNT, "subtraction underflow");
-        assert!(amount <= MAX_AMOUNT, "subtraction overflow");
-        Self {
-            amount,
-            symbol: self.symbol,
-        }
+        self.try_sub(rhs)
+            .unwrap_or_else(|e| panic!("{:?}", e))
     }
 }
 
@@ -392,17 +409,16 @@ impl Packer for Asset {
         enc.get_size() - pos
     }
 
-    fn unpack(&mut self, data: &[u8]) -> usize {
-        assert!(data.len() >= self.size(), "Asset.unpack: buffer overflow");
-
+    fn unpack(&mut self, data: &[u8]) -> Result<usize, PackerError> {
+        check_unpack_len!(self, data, 16);
+        // First amount as i64
         let mut dec = Decoder::new(data);
-        dec.unpack(&mut self.amount);
-        assert!(
-            self.amount >= -MAX_AMOUNT && self.amount <= MAX_AMOUNT,
-            "Asset.unpack: bad asset amount"
-        );
-        dec.unpack(&mut self.symbol);
-        dec.get_pos()
+        dec.unpack(&mut self.amount)?;
+        if self.amount < -MAX_AMOUNT || self.amount > MAX_AMOUNT {
+            return Err(packer_error!("bad asset amount while unpacking: {}", self.amount));
+        }
+        dec.unpack(&mut self.symbol)?;
+        Ok(dec.get_pos())
     }
 }
 
@@ -491,15 +507,11 @@ impl Packer for ExtendedAsset {
         enc.get_size() - pos
     }
 
-    fn unpack(&mut self, data: &[u8]) -> usize {
-        assert!(
-            data.len() >= self.size(),
-            "ExtendedAsset.unpack: buffer overflow"
-        );
-
+    fn unpack(&mut self, data: &[u8]) -> Result<usize, PackerError> {
+        check_unpack_len!(self, data, 16 + 8);
         let mut dec = Decoder::new(data);
-        dec.unpack(&mut self.quantity);
-        dec.unpack(&mut self.contract);
-        dec.get_pos()
+        dec.unpack(&mut self.quantity)?;
+        dec.unpack(&mut self.contract)?;
+        Ok(dec.get_pos())
     }
 }

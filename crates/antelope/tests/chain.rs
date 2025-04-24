@@ -11,11 +11,11 @@ use antelope::{
         checksum::{Checksum160, Checksum256, Checksum512},
         name::Name,
         transaction::{Transaction, TransactionHeader},
-        Decoder, Encoder, Packer,
     },
     name,
     util::{bytes_to_hex, hex_to_bytes},
 };
+use antelope::serializer::{Decoder, Encoder, Packer, PackerError};
 use antelope_client_macros::StructPacker;
 
 #[test]
@@ -54,7 +54,7 @@ fn asset() {
     let symbol_bytes = Encoder::pack(&symbol);
     let mut symbol_decoder = Decoder::new(symbol_bytes.as_slice());
     let symbol_unpacked = &mut Symbol::default();
-    symbol_decoder.unpack(symbol_unpacked);
+    symbol_decoder.unpack(symbol_unpacked).unwrap();
     assert_eq!(symbol.to_string(), symbol_unpacked.to_string());
     /*
        // test null asset
@@ -288,7 +288,7 @@ fn transaction() {
 
     let transfer_decoded = &mut Transfer::default();
     let mut decoder = Decoder::new(&transaction.actions[0].data);
-    decoder.unpack(transfer_decoded);
+    decoder.unpack(transfer_decoded).unwrap();
     assert_eq!(transfer_decoded.from, name!("foo"));
     /*
 
@@ -598,7 +598,7 @@ fn transaction_signature_verification() {
 
     // Decoding the transaction
     let mut transaction = Transaction::default();
-    transaction.unpack(encoded_transaction.as_slice());
+    transaction.unpack(encoded_transaction.as_slice()).unwrap();
 
     println!("CHAIN ID: {}", bytes_to_hex(&chain_id.to_vec()));
     println!();

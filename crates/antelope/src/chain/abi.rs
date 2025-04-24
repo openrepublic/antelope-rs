@@ -1,10 +1,9 @@
-use crate::chain::{Decoder, Encoder, Packer};
 use antelope_client_macros::StructPacker;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     chain::name::{deserialize_name, Name},
-    // serializer::{Decoder, Encoder, Packer},
+    serializer::{Decoder, Encoder, Packer, PackerError},
 };
 
 #[derive(Debug, Clone, Default, Eq, PartialEq, Serialize, Deserialize, StructPacker)]

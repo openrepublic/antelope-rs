@@ -1,5 +1,5 @@
 use crate::utils::ship_types::{ActionTrace, TransactionTrace};
-use antelope::chain::Packer;
+use antelope::serializer::Packer;
 use antelope::util::{bytes_to_hex, hex_to_bytes};
 
 mod utils;
@@ -36,6 +36,6 @@ fn traces() {
 
 fn decode<T: Packer + Default>(raw: &[u8]) -> T {
     let mut result = T::default();
-    result.unpack(raw);
+    result.unpack(raw).unwrap();
     result
 }
