@@ -5,3 +5,4 @@ pub use packer::{
     Packer,
     PackerError
 };
+pub mod vm;
