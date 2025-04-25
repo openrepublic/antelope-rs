@@ -1,326 +1,534 @@
 use crate::chain::varint::VarUint32;
 use crate::packer_error;
-use crate::serializer::vm::isa::{Instruction, Value};
+use crate::serializer::vm::isa::{Exception, Instruction, Value};
 use crate::serializer::{Encoder, Packer, PackerError};
 use crate::serializer::packer::Float128;
 
-#[derive(Debug)]
-pub struct PackerVM {
-    // instruction ptr
-    ip: usize,
-
-    // io stack
-    stack: Vec<Value>,
-    sp: usize,
-
-    // cnd stack
-    cndstack: Vec<isize>,
+macro_rules! type_mismatch {
+    ($expected:expr, $self:ident) => {
+        Err(packer_error!("Expected {}, got {}", $expected, &$self.stack[$self.sp]))
+    };
 }
 
-impl Default for PackerVM {
+#[cfg(feature = "debug_vm")]
+macro_rules! debug_log {
+    ($vm:expr, $instr:expr, $($args:tt)*) => {{
+        println!(
+            "ip({:4}) sp({:4}) csp({:4}) cnd({:4}) | instr: {:32} {:?} | s: {:?}",
+            $vm.ip,
+            $vm.sp,
+            $vm.csp,
+            $vm.cndstack.last().unwrap_or(&-1),
+            $instr,
+            format_args!($($args)*),
+            $vm.stack.get($vm.sp),
+        );
+    }};
+}
+
+#[cfg(not(feature = "debug_vm"))]
+macro_rules! debug_log {
+    ($vm:expr, $instr:expr, $($args:tt)*) => {{}};
+}
+
+pub struct PackVM {
+    ip:  usize,
+    sp:  usize,
+    csp: usize,
+
+    stack:      Vec<Value>,
+    cndstack:   Vec<isize>,
+
+    encoder: Encoder,
+}
+
+impl Default for PackVM {
     fn default() -> Self {
         Self {
             ip: 0,
+            sp: 0,
+            csp: 0,
 
             stack: Vec::new(),
-            sp: 0,
-
             cndstack: vec![0],
+
+            encoder: Encoder::new(0)
+        }
+    }
+}
+/// Nominal wrapper that breaks the type-alias recursion
+#[derive(Copy, Clone)]
+pub struct Code<'a>(&'a [Handler]);
+
+/// A boxed, 'static, re-usable handler closure
+type Handler = Box<dyn Fn(&mut PackVM, Code) -> Result<u8, PackerError> + 'static>;
+
+fn boolean() -> Handler {
+    Box::new(move |vm: &mut PackVM, code: Code| {
+        match vm.stack[vm.sp] {
+            Value::Bool(v) => {
+                v.pack(&mut vm.encoder);
+                vm.step();
+            }
+            _ => return type_mismatch!("Bool", vm)
+        }
+        debug_log!(vm, "bool", "()");
+        code.0[vm.ip](vm, code)
+    })
+}
+
+fn uint8() -> Handler {
+    Box::new(move |vm: &mut PackVM, code: Code| {
+        match vm.stack[vm.sp] {
+            Value::Uint8(v) => {
+                v.pack(&mut vm.encoder);
+                vm.step();
+            }
+            _ => return type_mismatch!("Uint8", vm)
+        }
+        debug_log!(vm, "uint8", "()");
+        code.0[vm.ip](vm, code)
+    })
+}
+
+fn uint16() -> Handler {
+    Box::new(move |vm: &mut PackVM, code: Code| {
+        match vm.stack[vm.sp] {
+            Value::Uint16(v) => {
+                v.pack(&mut vm.encoder);
+                vm.step();
+            }
+            _ => return type_mismatch!("Uint16", vm)
+        }
+        debug_log!(vm, "uint16", "()");
+        code.0[vm.ip](vm, code)
+    })
+}
+
+fn uint32() -> Handler {
+    Box::new(move |vm: &mut PackVM, code: Code| {
+        match vm.stack[vm.sp] {
+            Value::Uint32(v) => {
+                v.pack(&mut vm.encoder);
+                vm.step();
+            }
+            _ => return type_mismatch!("Uint32", vm)
+        }
+        debug_log!(vm, "uint32", "()");
+        code.0[vm.ip](vm, code)
+    })
+}
+
+fn uint64() -> Handler {
+    Box::new(move |vm: &mut PackVM, code: Code| {
+        match vm.stack[vm.sp] {
+            Value::Uint64(v) => {
+                v.pack(&mut vm.encoder);
+                vm.step();
+            }
+            _ => return type_mismatch!("Uint64", vm)
+        }
+        debug_log!(vm, "uint64", "()");
+        code.0[vm.ip](vm, code)
+    })
+}
+
+fn uint128() -> Handler {
+    Box::new(move |vm: &mut PackVM, code: Code| {
+        match vm.stack[vm.sp] {
+            Value::Uint128(v) => {
+                v.pack(&mut vm.encoder);
+                vm.step();
+            }
+            _ => return type_mismatch!("Uint128", vm)
+        }
+        debug_log!(vm, "uint128", "()");
+        code.0[vm.ip](vm, code)
+    })
+}
+
+fn int8() -> Handler {
+    Box::new(move |vm: &mut PackVM, code: Code| {
+        match vm.stack[vm.sp] {
+            Value::Int8(v) => {
+                v.pack(&mut vm.encoder);
+                vm.step();
+            }
+            _ => return type_mismatch!("Int8", vm)
+        }
+        debug_log!(vm, "int8", "()");
+        code.0[vm.ip](vm, code)
+    })
+}
+
+fn int16() -> Handler {
+    Box::new(move |vm: &mut PackVM, code: Code| {
+        match vm.stack[vm.sp] {
+            Value::Int16(v) => {
+                v.pack(&mut vm.encoder);
+                vm.step();
+            }
+            _ => return type_mismatch!("Int16", vm)
+        }
+        debug_log!(vm, "int16", "()");
+        code.0[vm.ip](vm, code)
+    })
+}
+
+fn int32() -> Handler {
+    Box::new(move |vm: &mut PackVM, code: Code| {
+        match vm.stack[vm.sp] {
+            Value::Int32(v) => {
+                v.pack(&mut vm.encoder);
+                vm.step();
+            }
+            _ => return type_mismatch!("Int32", vm)
+        }
+        debug_log!(vm, "int32", "()");
+        code.0[vm.ip](vm, code)
+    })
+}
+
+fn int64() -> Handler {
+    Box::new(move |vm: &mut PackVM, code: Code| {
+        match vm.stack[vm.sp] {
+            Value::Int64(v) => {
+                v.pack(&mut vm.encoder);
+                vm.step();
+            }
+            _ => return type_mismatch!("Int64", vm)
+        }
+        debug_log!(vm, "int64", "()");
+        code.0[vm.ip](vm, code)
+    })
+}
+
+fn int128() -> Handler {
+    Box::new(move |vm: &mut PackVM, code: Code| {
+        match vm.stack[vm.sp] {
+            Value::Int128(v) => {
+                v.pack(&mut vm.encoder);
+                vm.step();
+            }
+            _ => return type_mismatch!("Int128", vm)
+        }
+        debug_log!(vm, "int128", "()");
+        code.0[vm.ip](vm, code)
+    })
+}
+
+fn varuint32() -> Handler {
+    Box::new(move |vm: &mut PackVM, code: Code| {
+        match vm.stack[vm.sp] {
+            Value::VarUInt32(v) => {
+                VarUint32::new(v).pack(&mut vm.encoder);
+                vm.step();
+            }
+            _ => return type_mismatch!("VarUInt32", vm)
+        }
+        debug_log!(vm, "varuint32", "()");
+        code.0[vm.ip](vm, code)
+    })
+}
+
+fn float32() -> Handler {
+    Box::new(move |vm: &mut PackVM, code: Code| {
+        match vm.stack[vm.sp] {
+            Value::Float32(v) => {
+                v.pack(&mut vm.encoder);
+                vm.step();
+            }
+            _ => return type_mismatch!("Float32", vm)
+        }
+        debug_log!(vm, "float32", "()");
+        code.0[vm.ip](vm, code)
+    })
+}
+
+fn float64() -> Handler {
+    Box::new(move |vm: &mut PackVM, code: Code| {
+        match vm.stack[vm.sp] {
+            Value::Float64(v) => {
+                v.pack(&mut vm.encoder);
+                vm.step();
+            }
+            _ => return type_mismatch!("Float64", vm)
+        }
+        debug_log!(vm, "float64", "()");
+        code.0[vm.ip](vm, code)
+    })
+}
+
+fn float128() -> Handler {
+    Box::new(move |vm: &mut PackVM, code: Code| {
+        match vm.stack[vm.sp] {
+            Value::Float128(v) => {
+                Float128::new(v).pack(&mut vm.encoder);
+                vm.step();
+            }
+            _ => return type_mismatch!("Float128", vm)
+        }
+        debug_log!(vm, "float128", "()");
+        code.0[vm.ip](vm, code)
+    })
+}
+
+fn bytes() -> Handler {
+    Box::new(move |vm: &mut PackVM, code: Code| {
+        match &vm.stack[vm.sp] {
+            Value::Bytes(v) => {
+                v.pack(&mut vm.encoder);
+                vm.step();
+            }
+            _ => return type_mismatch!("Bytes", vm)
+        }
+        debug_log!(vm, "bytes", "()");
+        code.0[vm.ip](vm, code)
+    })
+}
+
+fn bytes_raw(len: u8) -> Handler {
+    Box::new(move |vm: &mut PackVM, code: Code| {
+        match &vm.stack[vm.sp] {
+            Value::Bytes(v) => {
+                if len > 0 && v.len() != len as usize {
+                    return Err(packer_error!("Raw bytes fixed size mistmatch: {} != {}", v.len(), len))
+                }
+                let target = vm.encoder.alloc(v.len());
+                target.copy_from_slice(v);
+                vm.step();
+            }
+            _ => return type_mismatch!("Bytes", vm)
+        }
+        debug_log!(vm, "bytes_raw", "({})", len);
+        code.0[vm.ip](vm, code)
+    })
+}
+
+fn optional(stride: u8) -> Handler {
+    Box::new(move |vm: &mut PackVM, code: Code| {
+        match &vm.stack[vm.sp] {
+            Value::None => {
+                0u8.pack(&mut vm.encoder);      // marker
+                vm.sp += 1;                     // pop the None
+                vm.ip += stride as usize + 1;   // jump over wrapped code
+            }
+            _ => {
+                1u8.pack(&mut vm.encoder);      // marker
+                vm.ip += 1;                     // execute wrapped code next
+                /*  ───────── NO stack change ─────────
+                 *  the wrapped handler(s) still need the
+                 *  actual value currently on top-of-stack
+                 */
+            }
+        }
+        debug_log!(vm, "optional", "({})", stride);
+        code.0[vm.ip](vm, code)
+    })
+}
+
+fn extension(stride: u8) -> Handler {
+    Box::new(move |vm: &mut PackVM, code: Code| {
+        match vm.stack.get(vm.sp) {
+            Some(Value::None) => {
+                0u8.pack(&mut vm.encoder);          // marker
+                vm.sp += 1;                         // pop the sentinel
+                vm.ip += stride as usize + 1;       // jump over wrapped code
+            }
+
+            Some(_) => {
+                1u8.pack(&mut vm.encoder);          // marker
+                vm.ip += 1;                         // execute wrapped code next
+            }
+
+            None => {
+                // no flag byte, behaviour identical to old VM
+                vm.ip += stride as usize + 1;       // skip wrapped code
+            }
+        }
+        debug_log!(vm, "extension", "({})", stride);
+        code.0[vm.ip](vm, code)
+    })
+}
+
+fn pushcnd() -> Handler {
+    Box::new(move |vm: &mut PackVM, code: Code| {
+        match vm.stack[vm.sp] {
+            Value::Condition(cnd) => {
+                vm.cndstack.push(cnd);
+                vm.csp += 1;
+                vm.step();
+            }
+            _ => return type_mismatch!("Condition", vm)
+        }
+        debug_log!(vm, "pushcnd", "io -> ({})", vm.cndstack[vm.cndstack.len() - 1]);
+        code.0[vm.ip](vm, code)
+    })
+}
+
+fn popcnd() -> Handler {
+    Box::new(move |vm: &mut PackVM, code: Code| {
+        vm.cndstack.pop();
+        vm.csp -= 1;
+        vm.ip += 1;
+        debug_log!(vm, "popcnd", "()");
+        code.0[vm.ip](vm, code)
+    })
+}
+
+fn jmp(ptr: usize) -> Handler {
+    Box::new(move |vm: &mut PackVM, code: Code| {
+        vm.ip = ptr;
+        debug_log!(vm, "jmp", "({})", ptr);
+        code.0[ptr](vm, code)
+    })
+}
+
+fn jmpcnd(target: usize, value: isize, delta: isize) -> Handler {
+    Box::new(move |vm: &mut PackVM, code: Code| {
+        /* fast-path: update the running counter */
+        {
+            vm.cndstack[vm.csp] += delta;
+            if vm.cndstack[vm.csp] == value {
+                vm.ip = target;       // branch taken
+                debug_log!(
+                    vm,
+                    "jmpcnd",
+                    "(t: {}, v: {}, d: {}) triggered", target, value, delta
+                );
+            } else {
+                vm.ip += 1;           // fall-through
+                debug_log!(
+                    vm,
+                    "jmpcnd",
+                    "(t: {}, v: {}, d: {})", target, value, delta
+                );
+            }
+        }
+        code.0[vm.ip](vm, code)
+    })
+}
+
+/// Jump *if current condition != `value`*
+fn jmpnotcnd(target: usize, value: isize, delta: isize) -> Handler {
+    Box::new(move |vm: &mut PackVM, code: Code| {
+        {
+            vm.cndstack[vm.csp] += delta;
+            if vm.cndstack[vm.csp] != value {
+                vm.ip = target;       // branch taken
+                debug_log!(
+                    vm,
+                    "jmpnotcnd",
+                    "(t: {}, v: {}, d: {}) triggered", target, value, delta
+                );
+            } else {
+                vm.ip += 1;           // fall-through
+                debug_log!(
+                    vm,
+                    "jmpnotcnd",
+                    "(t: {}, v: {}, d: {})", target, value, delta
+                );
+            }
+        }
+        code.0[vm.ip](vm, code)        // tail-call
+    })
+}
+
+fn raise(e: Exception) -> Handler {
+    Box::new(move |vm: &mut PackVM, _code: Code| {
+        debug_log!(
+            vm,
+            "raise",
+            "({:?})", e
+        );
+        Err(packer_error!("raise exception: {:?}", e))
+    })
+}
+
+fn exit(status: u8) -> Handler {
+    Box::new(move |vm: &mut PackVM, _code: Code| {
+        debug_log!(
+            vm,
+            "exit",
+            "({})", status
+        );
+        Ok(status)
+    })
+}
+
+impl Instruction {
+    pub fn to_handler(&self) -> Handler {
+        match self {
+            Instruction::Bool => boolean(),
+            Instruction::UInt(size) => {
+                match size {
+                    1 => uint8(),
+                    2 => uint16(),
+                    4 => uint32(),
+                    8 => uint64(),
+                    16 => uint128(),
+                    _ => unreachable!(),
+                }
+            }
+            Instruction::Int(size) => {
+                match size {
+                    1 => int8(),
+                    2 => int16(),
+                    4 => int32(),
+                    8 => int64(),
+                    16 => int128(),
+                    _ => unreachable!(),
+                }
+            }
+            Instruction::VarUInt => varuint32(),
+            Instruction::VarInt => unreachable!(),
+            Instruction::Float(size) => {
+                match size {
+                    4 => float32(),
+                    8 => float64(),
+                    16 => float128(),
+                    _ => unreachable!(),
+                }
+            }
+            Instruction::Bytes => bytes(),
+            Instruction::BytesRaw(len) => bytes_raw(*len),
+            Instruction::Optional(stride) => optional(*stride),
+            Instruction::Extension(stride) => extension(*stride),
+            Instruction::PushCND => pushcnd(),
+            Instruction::PopCND => popcnd(),
+            Instruction::Jmp(ptr) => jmp(*ptr),
+            Instruction::JmpCND(t, v, d) => jmpcnd(*t, *v, *d),
+            Instruction::JmpNotCND(t, v, d) => jmpnotcnd(*t, *v, *d),
+            Instruction::Raise(e) => raise(e.clone()),
+            Instruction::Exit(code) => exit(*code)
         }
     }
 }
 
-impl PackerVM {
+impl PackVM {
 
     pub fn new(stack: Vec<Value>) -> Self {
-        let mut vm = PackerVM::default();
+        let mut vm = PackVM::default();
         vm.stack = stack;
         vm
     }
 
+    /// advance ip and sp by one — the single most-typed line in every handler
     #[inline(always)]
-    fn stack_top(&self) -> &Value {
-        &self.stack[self.sp]
-    }
-
-    fn debug_log(&self, msg: &str) {
-        println!(
-            "ip({:3}), sp({:3}), cnd({:3}) | {:32} | {:?}",
-            self.ip, self.sp, self.cndstack.get(self.cndstack.len() - 1).unwrap(),
-            msg,
-            self.stack.get(self.sp)
-        );
-    }
-
-    #[inline(always)]
-    fn run_jmp(&mut self, target: usize) -> Result<(), PackerError> {
-        let prev_ip = self.ip;
-        self.ip = target;
-        self.debug_log(&format!("jmp {} -> {}", prev_ip, self.ip));
-        Ok(())
-    }
-
-    #[inline(always)]
-    fn run_pushcnd(&mut self) -> Result<(), PackerError> {
-        match self.stack_top() {
-            Value::Condition(cnd) => {
-                self.cndstack.push(*cnd);
-                self.ip += 1;
-                self.sp += 1;
-                self.debug_log("push cnd");
-                Ok(())
-            }
-            _ => Err(packer_error!("Expected Value::Condition but got {}", &self.stack[self.sp]))
-        }
-    }
-
-    #[inline(always)]
-    fn run_popcnd(&mut self) -> Result<(), PackerError> {
-        self.cndstack.pop();
+    fn step(&mut self) {
         self.ip += 1;
-        self.debug_log("pop cnd");
-        Ok(())
+        self.sp += 1;
     }
 
-    #[inline(always)]
-    fn run_jmpcnd(&mut self, target: usize, value: isize, delta: isize) -> Result<(), PackerError> {
-        let cnd = self.cndstack.last_mut().unwrap();
-        *cnd += delta;
-        if *cnd == value {
-            self.ip = target;
-            self.debug_log(&format!("jmp cnd triggered: {}, {}, {}", target, value, delta));
-            return Ok(());
-        }
-        self.ip += 1;
-        self.debug_log(&format!("jmp cnd: {}, {}, {}", target, value, delta));
-        Ok(())
-    }
+    pub fn pack(&mut self, program: &[Instruction]) -> Result<Vec<u8>, PackerError> {
+        let handlers: Vec<Handler> = program.iter()
+            .map(|op| op.to_handler())
+            .collect();
 
-    #[inline(always)]
-    fn run_jmpnotcnd(&mut self, target: usize, value: isize, delta: isize) -> Result<(), PackerError> {
-        let cnd = self.cndstack.last_mut().unwrap();
-        *cnd += delta;
-        if *cnd != value {
-            self.ip = target;
-            self.debug_log(&format!("jmp not cnd triggered: {}, {}, {}", target, value, delta));
-            return Ok(());
-        }
-        self.ip += 1;
-        self.debug_log(&format!("jmp not cnd: {}, {}, {}", target, value, delta));
-        Ok(())
-    }
+        let code = Code(&handlers);            // wrapper slice
+        (handlers[0])(self, code)?;
 
-    pub fn pack(
-        &mut self,
-        program: &Vec<Instruction>
-    ) -> Result<Vec<u8>, PackerError> {
-        for (i, op) in program.iter().enumerate() {
-            println!("{}: {:?}", i, op);
-        }
-        self.debug_log("Running pack program:");
-
-        let mut encoder = Encoder::new(0);
-
-        while self.ip < program.len() {
-            match &program[self.ip] {
-                Instruction::Bool => {
-                    match &self.stack[self.sp] {
-                        Value::Bool(val) => {
-                            val.pack(&mut encoder);
-                            self.sp += 1;
-                            self.ip += 1;
-                            self.debug_log("packed bool");
-                            Ok(())
-                        },
-                        _ => Err(packer_error!("Expected Value::Bool but got {}", &self.stack[self.sp]))
-                    }
-                }
-                Instruction::UInt(len) => {
-                    match &self.stack[self.sp] {
-                        Value::Int(buf, signed) => {
-                            if *signed {
-                                return Err(packer_error!("Expected Value::Int to be unsigned"));
-                            }
-                            if *len as usize != buf.len() {
-                                return Err(packer_error!("Expected Value::Int to be of size {} but is {}", len, buf.len()));
-                            }
-                            let len = *len as usize;
-                            match len {
-                                1 => Ok(buf[0].pack(&mut encoder)),
-                                2 => Ok(u16::from_le_bytes(buf.as_slice().try_into().unwrap()).pack(&mut encoder)),
-                                4 => Ok(u32::from_le_bytes(buf.as_slice().try_into().unwrap()).pack(&mut encoder)),
-                                8 => Ok(u64::from_le_bytes(buf.as_slice().try_into().unwrap()).pack(&mut encoder)),
-                                16 => Ok(u128::from_le_bytes(buf.as_slice().try_into().unwrap()).pack(&mut encoder)),
-                                _ => Err(packer_error!("Expected Value::Int to be of size {} but is {}", len, buf.len()))
-                            }?;
-                            self.sp += 1;
-                            self.ip += 1;
-                            self.debug_log("packed uint");
-                            Ok(())
-                        },
-                        _ => Err(packer_error!("Expected Value::UInt but got {}", &self.stack[self.sp]))
-                    }
-                }
-                Instruction::Int(len) => {
-                    match &self.stack[self.sp] {
-                        Value::Int(buf, signed) => {
-                            if !*signed {
-                                return Err(packer_error!("Expected Value::Int to be signed"));
-                            }
-                            if *len as usize != buf.len() {
-                                return Err(packer_error!("Expected Value::Int to be of size {} but is {}", len, buf.len()));
-                            }
-                            match len {
-                                1 => Ok((buf[0] as i8).pack(&mut encoder)),
-                                2 => Ok(i16::from_le_bytes(buf.as_slice().try_into().unwrap()).pack(&mut encoder)),
-                                4 => Ok(i32::from_le_bytes(buf.as_slice().try_into().unwrap()).pack(&mut encoder)),
-                                8 => Ok(i64::from_le_bytes(buf.as_slice().try_into().unwrap()).pack(&mut encoder)),
-                                16 => Ok(i128::from_le_bytes(buf.as_slice().try_into().unwrap()).pack(&mut encoder)),
-                                _ => Err(packer_error!("Expected Value::Int to be of size {} but is {}", len, buf.len()))
-                            }?;
-                            self.sp += 1;
-                            self.ip += 1;
-                            self.debug_log("packed int");
-                            Ok(())
-                        },
-                        _ => Err(packer_error!("Expected Value::Int but got {}", &self.stack[self.sp]))
-                    }
-                }
-                Instruction::VarUInt => {
-                    match &self.stack[self.sp] {
-                        Value::Int(buf, signed) => {
-                            if *signed {
-                                return Err(packer_error!("Expected Value::Int to be unsigned"));
-                            }
-                            if buf.len() != 4 {
-                                return Err(packer_error!("Expected Value::Int to be of size 4 but is {}", buf.len()));
-                            }
-                            let num = u32::from_le_bytes(buf.as_slice().try_into().unwrap());
-                            VarUint32::new(num).pack(&mut encoder);
-                            self.sp += 1;
-                            self.ip += 1;
-                            self.debug_log("packed varuint");
-                            Ok(())
-                        },
-                        _ => Err(packer_error!("Expected Value::UInt but got {}", &self.stack[self.sp]))
-                    }
-                }
-                Instruction::VarInt => {
-                    Err(packer_error!("DataOp::VarInt32 not implemented!"))
-                }
-                Instruction::Float(len) => {
-                    match &self.stack[self.sp] {
-                        Value::Float(buf) => {
-                            if *len as usize != buf.len() {
-                                return Err(packer_error!("Expected Value::Float to be of size {} but is {}", len, buf.len()));
-                            }
-                            match len {
-                                4 => Ok(f32::from_le_bytes(buf.as_slice().try_into().unwrap()).pack(&mut encoder)),
-                                8 => Ok(f64::from_le_bytes(buf.as_slice().try_into().unwrap()).pack(&mut encoder)),
-                                16 => Ok(Float128::new(buf.as_slice().try_into().unwrap()).pack(&mut encoder)),
-                                _ => Err(packer_error!("Expected Value::Float to be of size {} but is {}", len, buf.len()))
-                            }?;
-                            self.sp += 1;
-                            self.ip += 1;
-                            self.debug_log("packed float");
-                            Ok(())
-                        },
-                        _ => Err(packer_error!("Expected Value::Float but got {}", &self.stack[self.sp]))
-                    }
-                }
-                Instruction::Bytes => {
-                    match &self.stack[self.sp] {
-                        Value::Bytes(buf) => {
-                            buf.pack(&mut encoder);
-                            self.sp += 1;
-                            self.ip += 1;
-                            self.debug_log("packed bytes");
-                            Ok(())
-                        }
-                        _ => Err(packer_error!("Expected Value::Bytes but got {}", &self.stack[self.sp]))
-                    }
-                }
-                Instruction::BytesRaw(len) => {
-                    match &self.stack[self.sp] {
-                        Value::Bytes(buf) => {
-                            if *len > 0 && buf.len() != *len as usize {
-                                return Err(packer_error!("Expected Value::Bytes with length {} but is {}", len, buf.len()));
-                            }
-                            let target = encoder.alloc(buf.len());
-                            target.copy_from_slice(buf);
-                            self.sp += 1;
-                            self.ip += 1;
-                            self.debug_log(&format!("packed raw bytes {}", len));
-                            Ok(())
-                        }
-                        _ => Err(packer_error!("Expected Value::Bytes but got {}", &self.stack[self.sp]))
-                    }
-                }
-                Instruction::Optional(stride) => {
-                    match &self.stack[self.sp] {
-                        Value::None => {
-                            0u8.pack(&mut encoder);
-                            self.sp += 1;
-                            self.ip += *stride as usize + 1;
-                            self.debug_log("packed none");
-                            Ok(())
-                        },
-                        _ => {
-                            1u8.pack(&mut encoder);
-                            self.ip += 1;
-                            self.debug_log("packed some");
-                            Ok(())
-                        }
-                    }
-                }
-                Instruction::Extension(stride) => {
-                    if let Some(val) = self.stack.get(self.sp) {
-                        match val {
-                            Value::None => {
-                                0u8.pack(&mut encoder);
-                                self.sp += 1;
-                                self.ip += *stride as usize + 1;
-                                self.debug_log("packed none ext");
-                                Ok(())
-                            },
-                            _ => {
-                                1u8.pack(&mut encoder);
-                                self.ip += 1;
-                                self.debug_log("packed some ext");
-                                Ok(())
-                            }
-                        }
-                    } else {
-                        self.ip += *stride as usize + 1;
-                        self.debug_log("packed none ext with no value");
-                        Ok(())
-                    }
-                }
-                Instruction::Jmp(ptr) => {
-                    self.run_jmp(*ptr)
-                }
-                Instruction::PushCND => {
-                    self.run_pushcnd()
-                }
-                Instruction::PopCND => {
-                    self.run_popcnd()
-                }
-                Instruction::JmpCND(target, cnd, delta) => {
-                    self.run_jmpcnd(*target, *cnd, *delta)
-                }
-                Instruction::JmpNotCND(target, cnd, delta) => {
-                    self.run_jmpnotcnd(*target, *cnd, *delta)
-                }
-                Instruction::Raise(e) => Err(packer_error!("{:?}", e)),
-                _ => {
-                    self.ip += 1;
-                    self.debug_log("skip debug");
-                    Ok(())
-                }
-            }?;
-        }
-
-        Ok(encoder.get_bytes().to_vec())
+        Ok(self.encoder.get_bytes().to_vec())
     }
 }
 
@@ -332,17 +540,16 @@ mod tests {
     use crate::chain::asset::Asset;
     use crate::chain::name::Name;
     use crate::chain::public_key::PublicKey;
-    use crate::serializer::vm::compiler::compile_type;
+    use crate::serializer::vm::compiler::compile_program;
 
     const EOSIO_JSON: &str = include_str!("eosio.json");
     const TEST_JSON: &str = include_str!("test.json");
 
     #[test]
-    fn test_custom_type() {
+    fn test_custom_type_var_0() {
         let abi: ABI = from_str(TEST_JSON).expect("failed to parse ABI JSON");
 
-        let mut program = Vec::new();
-        compile_type(&abi, "test_types", &mut program, false)
+        let program = compile_program(&abi, "test_types")
             .expect("failed to compile type");
 
         let bigfloat: [u8; 16] = [
@@ -352,88 +559,91 @@ mod tests {
 
         let quanitity = Asset::from_string("420.6900 TLOS");
 
-        let stack = vec![
+        let stack: Vec<Value> = vec![
             Value::Condition(0),
             Value::Bool(true),
-            Value::Int(69u8.to_le_bytes().to_vec(), false),
-            Value::Int(69u16.to_le_bytes().to_vec(), false),
-            Value::Int(69u32.to_le_bytes().to_vec(), false),
-            Value::Int(69u64.to_le_bytes().to_vec(), false),
-            Value::Int(69u128.to_le_bytes().to_vec(), false),
-            Value::Int((-69i8).to_le_bytes().to_vec(), true),
-            Value::Int((-69i16).to_le_bytes().to_vec(), true),
-            Value::Int((-69i32).to_le_bytes().to_vec(), true),
-            Value::Int((-69i64).to_le_bytes().to_vec(), true),
-            Value::Int((-69i128).to_le_bytes().to_vec(), true),
-            Value::Int(420u32.to_le_bytes().to_vec(), false),
-            Value::Float(4.20f32.to_le_bytes().to_vec()),
-            Value::Float(4.20f64.to_le_bytes().to_vec()),
-            Value::Bytes(bigfloat.to_vec()),
-            Value::Int(
-                Name::new_from_str("eosio").value().to_le_bytes().to_vec(),
-                false
-            ),
+            69u8.into(),
+            69u16.into(),
+            69u32.into(),
+            69u64.into(),
+            69u128.into(),
+            (-69i8).into(),
+            (-69i16).into(),
+            (-69i32).into(),
+            (-69i64).into(),
+            (-69i128).into(),
+            Value::VarUInt32(420u32),
+            4.20f32.into(),
+            4.20f64.into(),
+            Value::Float128(bigfloat),
+            Name::new_from_str("eosio").value().into(),
             Value::Bytes(bigfloat.to_vec()),
             Value::Bytes("this is a test".as_bytes().to_vec()),
             Value::Condition(3),
-            Value::Int(42u32.to_le_bytes().to_vec(), false),
-            Value::Int(42u32.to_le_bytes().to_vec(), false),
-            Value::Int(42u32.to_le_bytes().to_vec(), false),
+            42u32.into(),
+            42u32.into(),
+            42u32.into(),
             Value::None,
-            Value::Int(
-                Name::new_from_str("eosio").value().to_le_bytes().to_vec(),
-                false
-            ),
+            Name::new_from_str("eosio").value().into(),
             // asset
-            Value::Int(quanitity.amount().to_le_bytes().to_vec(), true),
-            Value::Int(quanitity.symbol().value().to_le_bytes().to_vec(), false),
+            quanitity.amount().into(),
+            quanitity.symbol().value().into(),
         ];
 
-        let mut vm = PackerVM::new(stack);
+        let mut vm = PackVM::new(stack);
 
         let result = vm.pack(&program)
             .expect("failed to pack value");
 
         println!("{:?}", result);
+    }
 
-        let stack = vec![
+    #[test]
+    fn test_custom_type_var_1() {
+        let abi: ABI = from_str(TEST_JSON).expect("failed to parse ABI JSON");
+
+        let program = compile_program(&abi, "test_types")
+            .expect("failed to compile type");
+
+        let bigfloat: [u8; 16] = [
+            6, 9, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 4, 2, 0,
+        ];
+
+        let quanitity = Asset::from_string("420.6900 TLOS");
+
+        let stack: Vec<Value> = vec![
             Value::Condition(1),
             Value::Bool(true),
-            Value::Int(69u8.to_le_bytes().to_vec(), false),
-            Value::Int(69u16.to_le_bytes().to_vec(), false),
-            Value::Int(69u32.to_le_bytes().to_vec(), false),
-            Value::Int(69u64.to_le_bytes().to_vec(), false),
-            Value::Int(69u128.to_le_bytes().to_vec(), false),
-            Value::Int((-69i8).to_le_bytes().to_vec(), true),
-            Value::Int((-69i16).to_le_bytes().to_vec(), true),
-            Value::Int((-69i32).to_le_bytes().to_vec(), true),
-            Value::Int((-69i64).to_le_bytes().to_vec(), true),
-            Value::Int((-69i128).to_le_bytes().to_vec(), true),
-            Value::Int(420u32.to_le_bytes().to_vec(), false),
-            Value::Float(4.20f32.to_le_bytes().to_vec()),
-            Value::Float(4.20f64.to_le_bytes().to_vec()),
-            Value::Bytes(bigfloat.to_vec()),
-            Value::Int(
-                Name::new_from_str("eosio").value().to_le_bytes().to_vec(),
-                false
-            ),
+            69u8.into(),
+            69u16.into(),
+            69u32.into(),
+            69u64.into(),
+            69u128.into(),
+            (-69i8).into(),
+            (-69i16).into(),
+            (-69i32).into(),
+            (-69i64).into(),
+            (-69i128).into(),
+            Value::VarUInt32(420u32),
+            4.20f32.into(),
+            4.20f64.into(),
+            Value::Float128(bigfloat),
+            Name::new_from_str("eosio").value().into(),
             Value::Bytes(bigfloat.to_vec()),
             Value::Bytes("this is a test".as_bytes().to_vec()),
             Value::Condition(3),
-            Value::Int(42u32.to_le_bytes().to_vec(), false),
-            Value::Int(42u32.to_le_bytes().to_vec(), false),
-            Value::Int(42u32.to_le_bytes().to_vec(), false),
+            42u32.into(),
+            42u32.into(),
+            42u32.into(),
             Value::None,
-            Value::Int(
-                Name::new_from_str("eosio").value().to_le_bytes().to_vec(),
-                false
-            ),
-            // asset
+            // sub fields
+            Name::new_from_str("eosio").value().into(),
             Value::Bytes(bigfloat.to_vec()),
-            Value::Bool(false),
+            Value::Bool(false)
         ];
 
-        let mut vm = PackerVM::new(stack);
+        let mut vm = PackVM::new(stack);
 
         let result = vm.pack(&program)
             .expect("failed to pack value");
@@ -449,18 +659,18 @@ mod tests {
         pkey.pack(&mut encoder);
         let pkey_bytes = encoder.get_bytes().to_vec();
 
-        let mut program = Vec::new();
-        compile_type(&abi, "variant_block_signing_authority_v0", &mut program, false).expect("failed to compile type");
+        let program = compile_program(&abi, "variant_block_signing_authority_v0")
+            .expect("failed to compile type");
 
         let stack = vec![
             Value::Condition(0),
-            Value::Int(420u32.to_le_bytes().to_vec(), false),
+            420u32.into(),
             Value::Condition(1),
             Value::Bytes(pkey_bytes),
-            Value::Int(69u16.to_le_bytes().to_vec(), false),
+            69u16.into(),
         ];
 
-        let mut vm = PackerVM::new(stack);
+        let mut vm = PackVM::new(stack);
 
         let result = vm.pack(&program)
             .expect("failed to pack value");

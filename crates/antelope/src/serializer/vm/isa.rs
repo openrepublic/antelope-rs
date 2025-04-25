@@ -47,7 +47,8 @@ Any other type should be able to be represented by a sequence of these types
  */
 use std::cmp::PartialEq;
 use std::fmt;
-
+use crate::serializer::PackerError;
+use crate::serializer::vm::runtime::PackVM;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Exception {
@@ -58,29 +59,77 @@ pub enum Exception {
 pub enum Value {
     None,
     Bool(bool),
-    Int(Vec<u8>, bool),
-    Float(Vec<u8>),
+
+    // unsigned
+    Uint8 (u8),
+    Uint16(u16),
+    Uint32(u32),
+    Uint64(u64),
+    Uint128(u128),
+
+    // signed
+    Int8 (i8),
+    Int16(i16),
+    Int32(i32),
+    Int64(i64),
+    Int128(i128),
+
+    // var-len encoded integers
+    VarUInt32(u32),
+    VarInt32(i32),
+
+    // floats
+    Float32(f32),
+    Float64(f64),
+    Float128([u8; 16]),
+
     Bytes(Vec<u8>),
     Condition(isize),
 }
+
+
+macro_rules! impl_value_from {
+    ($( ($src:ty, $dst:ident) ),* $(,)?) => {
+        $(impl From<$src> for Value {
+            #[inline] fn from(v: $src) -> Self { Value::$dst(v) }
+        })*
+    };
+}
+
+impl_value_from!(
+    (u8 , Uint8 ), (u16, Uint16), (u32, Uint32), (u64, Uint64), (u128, Uint128),
+    (i8 , Int8  ), (i16, Int16 ), (i32, Int32 ), (i64, Int64 ), (i128, Int128),
+    (f32, Float32), (f64, Float64)
+);
 
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Value::None => write!(f, "None"),
-            Value::Bool(b) => write!(f, "{}", b),
-            Value::Int(bytes, signed) => {
-                write!(f, "Int({} bytes, signed: {})", bytes.len(), signed)
-            }
-            Value::Float(bytes) => {
-                write!(f, "Float({} bytes)", bytes.len())
-            }
-            Value::Bytes(bytes) => {
-                write!(f, "Bytes(0x{})", hex::encode(bytes))
-            }
-            Value::Condition(size) => {
-                write!(f, "Condition({})", size)
-            }
+            Value::Bool(v) => write!(f, "{}", v),
+
+            Value::Uint8(v) => write!(f, "{}", v),
+            Value::Uint16(v) => write!(f, "{}", v),
+            Value::Uint32(v) => write!(f, "{}", v),
+            Value::Uint64(v) => write!(f, "{}", v),
+            Value::Uint128(v) => write!(f, "{}", v),
+
+            Value::Int8(v) => write!(f, "{}", v),
+            Value::Int16(v) => write!(f, "{}", v),
+            Value::Int32(v) => write!(f, "{}", v),
+            Value::Int64(v) => write!(f, "{}", v),
+            Value::Int128(v) => write!(f, "{}", v),
+
+            Value::VarUInt32(v) => write!(f, "{}", v),
+            Value::VarInt32(v) => write!(f, "{}", v),
+
+            Value::Float32(v) => write!(f, "{}", v),
+            Value::Float64(v) => write!(f, "{}", v),
+            Value::Float128(bytes) => write!(f, "Float128({:02x?})", bytes),
+
+            Value::Bytes(vec) => write!(f, "Bytes({:02x?})", vec),
+
+            Value::Condition(v) => write!(f, "Condition({})", v),
         }
     }
 }
@@ -117,11 +166,8 @@ pub enum Instruction {
     // used to indicate a program shouldn't reach this instruction
     Raise(Exception),
 
-    DebugVariantDef(String),
-    DebugVariantImpl(String),
-    DebugTypeAlias(String),
-    DebugNextType(String),
-    DebugEndType(String),
+    // stop the runtime
+    Exit(u8)
 }
 
 #[inline(always)]
@@ -146,7 +192,7 @@ pub fn instruction_sequence_for(ty: &str) -> Option<Vec<Instruction>> {
 
         "float32" => vec![Instruction::Float(4)],
         "float64" => vec![Instruction::Float(8)],
-        "float128" => vec![Instruction::BytesRaw(16)],
+        "float128" => vec![Instruction::Float(16)],
 
         "time_point" => vec![Instruction::UInt(8)],
         "time_point_sec" => vec![Instruction::UInt(4)],
