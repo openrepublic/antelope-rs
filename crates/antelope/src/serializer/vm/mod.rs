@@ -8,6 +8,8 @@ pub use isa::{
     instruction_sequence_for
 };
 pub mod runtime;
+mod isa_impl;
+
 pub use runtime::{
     PackVM
 };
