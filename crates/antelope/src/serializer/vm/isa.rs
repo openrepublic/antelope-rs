@@ -47,8 +47,11 @@ Any other type should be able to be represented by a sequence of these types
  */
 use std::cmp::PartialEq;
 use std::fmt;
-use crate::serializer::PackerError;
-use crate::serializer::vm::runtime::PackVM;
+use std::fmt::Debug;
+use crate::chain::binary_extension::BinaryExtension;
+use crate::chain::name::Name;
+use crate::chain::varint::VarUint32;
+use crate::serializer::Packer;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Exception {
@@ -93,14 +96,92 @@ macro_rules! impl_value_from {
         $(impl From<$src> for Value {
             #[inline] fn from(v: $src) -> Self { Value::$dst(v) }
         })*
+
+        $(impl From<&$src> for Value {
+            #[inline] fn from(v: &$src) -> Self { Value::$dst(*v) }
+        })*
     };
 }
 
 impl_value_from!(
-    (u8 , Uint8 ), (u16, Uint16), (u32, Uint32), (u64, Uint64), (u128, Uint128),
-    (i8 , Int8  ), (i16, Int16 ), (i32, Int32 ), (i64, Int64 ), (i128, Int128),
+    (bool, Bool),
+    (u8, Uint8), (u16, Uint16), (u32, Uint32), (u64, Uint64), (u128, Uint128),
+    (i8, Int8), (i16, Int16), (i32, Int32), (i64, Int64), (i128, Int128),
     (f32, Float32), (f64, Float64)
 );
+
+impl From<String> for Value {
+    fn from(s: String) -> Self {
+        Value::Bytes(s.into_bytes())
+    }
+}
+
+impl From<&String> for Value {
+    fn from(s: &String) -> Self {
+        Value::Bytes(s.clone().into_bytes())
+    }
+}
+
+impl From<&str> for Value {
+    fn from(value: &str) -> Self {
+        Value::Bytes(value.as_bytes().to_vec())
+    }
+}
+
+impl From<Vec<u8>> for Value {
+    fn from(value: Vec<u8>) -> Self {
+        Value::Bytes(value)
+    }
+}
+
+impl From<VarUint32> for Value {
+    fn from(value: VarUint32) -> Self {
+        Value::VarUInt32(value.n)
+    }
+}
+
+impl From<[u8; 16]> for Value {
+    fn from(value: [u8; 16]) -> Self {
+        Value::Float128(value)
+    }
+}
+
+impl From<Name> for Value {
+    fn from(n: Name) -> Self {
+        n.value().into()
+    }
+}
+
+
+impl From<&Name> for Value {
+    fn from(n: &Name) -> Self {
+        n.value().into()
+    }
+}
+
+impl From<isize> for Value {
+    fn from(value: isize) -> Self {
+        Value::Condition(value)
+    }
+}
+
+impl<T> From<Option<T>> for Value where T: Into<Value> {
+    fn from(value: Option<T>) -> Self {
+        if let Some(v) = value {
+            v.into()
+        } else {
+            Value::None
+        }
+    }
+}
+
+impl<T> From<BinaryExtension<T>> for Value where
+    T: Into<Value> + Packer + Default,
+{
+    fn from(ext: BinaryExtension<T>) -> Self {
+        ext.value.into()
+    }
+}
 
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -219,3 +300,123 @@ pub fn instruction_sequence_for(ty: &str) -> Option<Vec<Instruction>> {
         _ => return None,
     })
 }
+
+// traits for things that can be part of an IO stack
+pub trait IOStackValue {
+    fn push_to_stack(&self, stack: &mut Vec<Value>);
+}
+
+macro_rules! impl_io_stack_value {
+    ($( $src:ty ),* $(,)?) => {
+        $(impl IOStackValue for $src {
+            fn push_to_stack(&self, stack: &mut Vec<Value>) {
+                stack.push(self.into())
+            }
+        })*
+
+        $(impl IOStackValue for &$src {
+            fn push_to_stack(&self, stack: &mut Vec<Value>) {
+                stack.push(Value::from(*self).into())
+            }
+        })*
+    };
+}
+
+impl_io_stack_value!(
+    bool,
+    u8,
+    u16,
+    u32,
+    u64,
+    u128,
+    i8,
+    i16,
+    i32,
+    i64,
+    i128,
+    f32, f64,
+    String,
+    Name
+);
+
+
+impl IOStackValue for Vec<u8> {
+    fn push_to_stack(&self, out: &mut Vec<Value>) {
+        out.push(Value::Bytes(self.clone()));
+    }
+}
+
+impl IOStackValue for Vec<String> {
+    fn push_to_stack(&self, out: &mut Vec<Value>) {
+        out.push(Value::Condition(self.len() as isize));
+        self.iter()
+            .map(|s| s.clone().into_bytes().into())
+            .for_each(|raw| out.push(Value::Bytes(raw)));
+    }
+}
+
+impl IOStackValue for Option<Vec<u8>> {
+    fn push_to_stack(&self, out: &mut Vec<Value>) {
+        match self {
+            Some(v) => v.push_to_stack(out),
+            None    => out.push(Value::None),
+        }
+    }
+}
+
+impl IOStackValue for Option<String> {
+    fn push_to_stack(&self, out: &mut Vec<Value>) {
+        match self {
+            Some(v) => v.push_to_stack(out),
+            None    => out.push(Value::None),
+        }
+    }
+}
+
+impl IOStackValue for Option<Name> {
+    fn push_to_stack(&self, out: &mut Vec<Value>) {
+        match self {
+            Some(v) => v.n.push_to_stack(out),
+            None    => out.push(Value::None),
+        }
+    }
+}
+
+default impl<T: IOStackValue> IOStackValue for Option<T> {
+    fn push_to_stack(&self, out: &mut Vec<Value>) {
+        match self {
+            Some(v) => v.push_to_stack(out),
+            None    => out.push(Value::None),
+        }
+    }
+}
+
+impl IOStackValue for BinaryExtension<Name> {
+    fn push_to_stack(&self, stack: &mut Vec<Value>) {
+        match &self.value {
+            Some(v) => v.push_to_stack(stack),
+            None    => stack.push(Value::None),
+        }
+    }
+}
+
+default impl<T: IOStackValue> IOStackValue for BinaryExtension<T>
+where
+    T: Packer + Default,
+{
+    fn push_to_stack(&self, out: &mut Vec<Value>) {
+        match &self.value {
+            Some(v) => v.push_to_stack(out),
+            None    => out.push(Value::None),
+        }
+    }
+}
+
+pub trait IntoIOStack: IOStackValue {
+    fn to_stack(&self) -> Vec<Value> {
+        let mut v = Vec::new();
+        self.push_to_stack(&mut v);
+        v
+    }
+}
+impl<T: IOStackValue + ?Sized> IntoIOStack for T {}

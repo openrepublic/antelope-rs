@@ -14,13 +14,12 @@ macro_rules! type_mismatch {
 macro_rules! debug_log {
     ($vm:expr, $instr:expr, $($args:tt)*) => {{
         println!(
-            "ip({:4}) sp({:4}) csp({:4}) cnd({:4}) | instr: {:32} {:?} | s: {:?}",
+            "ip({:4}) sp({:4}) csp({:4}) cnd({:4}) | {:80} | s: {:?}",
             $vm.ip,
             $vm.sp,
             $vm.csp,
             $vm.cndstack.last().unwrap_or(&-1),
-            $instr,
-            format_args!($($args)*),
+            &format!("{}{}", $instr, format_args!($($args)*)),
             $vm.stack.get($vm.sp),
         );
     }};
@@ -312,17 +311,14 @@ fn optional(stride: u8) -> Handler {
                 0u8.pack(&mut vm.encoder);      // marker
                 vm.sp += 1;                     // pop the None
                 vm.ip += stride as usize + 1;   // jump over wrapped code
+                debug_log!(vm, "optional none", "({})", stride);
             }
             _ => {
                 1u8.pack(&mut vm.encoder);      // marker
                 vm.ip += 1;                     // execute wrapped code next
-                /*  ───────── NO stack change ─────────
-                 *  the wrapped handler(s) still need the
-                 *  actual value currently on top-of-stack
-                 */
+                debug_log!(vm, "optional some", "({})", stride);
             }
         }
-        debug_log!(vm, "optional", "({})", stride);
         code.0[vm.ip](vm, code)
     })
 }
@@ -331,22 +327,21 @@ fn extension(stride: u8) -> Handler {
     Box::new(move |vm: &mut PackVM, code: Code| {
         match vm.stack.get(vm.sp) {
             Some(Value::None) => {
-                0u8.pack(&mut vm.encoder);          // marker
                 vm.sp += 1;                         // pop the sentinel
                 vm.ip += stride as usize + 1;       // jump over wrapped code
+                debug_log!(vm, "extension none", "({})", stride);
             }
 
             Some(_) => {
-                1u8.pack(&mut vm.encoder);          // marker
-                vm.ip += 1;                         // execute wrapped code next
+                vm.ip += 1;
+                debug_log!(vm, "extension", "({})", stride);
             }
 
             None => {
-                // no flag byte, behaviour identical to old VM
                 vm.ip += stride as usize + 1;       // skip wrapped code
+                debug_log!(vm, "extension stack empty", "({})", stride);
             }
         }
-        debug_log!(vm, "extension", "({})", stride);
         code.0[vm.ip](vm, code)
     })
 }
@@ -358,6 +353,7 @@ fn pushcnd() -> Handler {
                 vm.cndstack.push(cnd);
                 vm.csp += 1;
                 vm.step();
+                VarUint32::new(cnd as u32).pack(&mut vm.encoder);
             }
             _ => return type_mismatch!("Condition", vm)
         }
@@ -435,6 +431,7 @@ fn jmpnotcnd(target: usize, value: isize, delta: isize) -> Handler {
 }
 
 fn raise(e: Exception) -> Handler {
+    #[allow(unused_variables)]
     Box::new(move |vm: &mut PackVM, _code: Code| {
         debug_log!(
             vm,
@@ -446,6 +443,7 @@ fn raise(e: Exception) -> Handler {
 }
 
 fn exit(status: u8) -> Handler {
+    #[allow(unused_variables)]
     Box::new(move |vm: &mut PackVM, _code: Code| {
         debug_log!(
             vm,
@@ -529,152 +527,5 @@ impl PackVM {
         (handlers[0])(self, code)?;
 
         Ok(self.encoder.get_bytes().to_vec())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::chain::abi::ABI;
-    use serde_json::from_str;
-    use crate::chain::asset::Asset;
-    use crate::chain::name::Name;
-    use crate::chain::public_key::PublicKey;
-    use crate::serializer::vm::compiler::compile_program;
-
-    const EOSIO_JSON: &str = include_str!("eosio.json");
-    const TEST_JSON: &str = include_str!("test.json");
-
-    #[test]
-    fn test_custom_type_var_0() {
-        let abi: ABI = from_str(TEST_JSON).expect("failed to parse ABI JSON");
-
-        let program = compile_program(&abi, "test_types")
-            .expect("failed to compile type");
-
-        let bigfloat: [u8; 16] = [
-            6, 9, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 4, 2, 0,
-        ];
-
-        let quanitity = Asset::from_string("420.6900 TLOS");
-
-        let stack: Vec<Value> = vec![
-            Value::Condition(0),
-            Value::Bool(true),
-            69u8.into(),
-            69u16.into(),
-            69u32.into(),
-            69u64.into(),
-            69u128.into(),
-            (-69i8).into(),
-            (-69i16).into(),
-            (-69i32).into(),
-            (-69i64).into(),
-            (-69i128).into(),
-            Value::VarUInt32(420u32),
-            4.20f32.into(),
-            4.20f64.into(),
-            Value::Float128(bigfloat),
-            Name::new_from_str("eosio").value().into(),
-            Value::Bytes(bigfloat.to_vec()),
-            Value::Bytes("this is a test".as_bytes().to_vec()),
-            Value::Condition(3),
-            42u32.into(),
-            42u32.into(),
-            42u32.into(),
-            Value::None,
-            Name::new_from_str("eosio").value().into(),
-            // asset
-            quanitity.amount().into(),
-            quanitity.symbol().value().into(),
-        ];
-
-        let mut vm = PackVM::new(stack);
-
-        let result = vm.pack(&program)
-            .expect("failed to pack value");
-
-        println!("{:?}", result);
-    }
-
-    #[test]
-    fn test_custom_type_var_1() {
-        let abi: ABI = from_str(TEST_JSON).expect("failed to parse ABI JSON");
-
-        let program = compile_program(&abi, "test_types")
-            .expect("failed to compile type");
-
-        let bigfloat: [u8; 16] = [
-            6, 9, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 4, 2, 0,
-        ];
-
-        let quanitity = Asset::from_string("420.6900 TLOS");
-
-        let stack: Vec<Value> = vec![
-            Value::Condition(1),
-            Value::Bool(true),
-            69u8.into(),
-            69u16.into(),
-            69u32.into(),
-            69u64.into(),
-            69u128.into(),
-            (-69i8).into(),
-            (-69i16).into(),
-            (-69i32).into(),
-            (-69i64).into(),
-            (-69i128).into(),
-            Value::VarUInt32(420u32),
-            4.20f32.into(),
-            4.20f64.into(),
-            Value::Float128(bigfloat),
-            Name::new_from_str("eosio").value().into(),
-            Value::Bytes(bigfloat.to_vec()),
-            Value::Bytes("this is a test".as_bytes().to_vec()),
-            Value::Condition(3),
-            42u32.into(),
-            42u32.into(),
-            42u32.into(),
-            Value::None,
-            // sub fields
-            Name::new_from_str("eosio").value().into(),
-            Value::Bytes(bigfloat.to_vec()),
-            Value::Bool(false)
-        ];
-
-        let mut vm = PackVM::new(stack);
-
-        let result = vm.pack(&program)
-            .expect("failed to pack value");
-
-        println!("{:?}", result);
-    }
-
-    #[test]
-    fn test_pack_voter_info() {
-        let abi: ABI = from_str(EOSIO_JSON).expect("failed to parse ABI JSON");
-        let mut encoder = Encoder::new(0);
-        let pkey = PublicKey::default();
-        pkey.pack(&mut encoder);
-        let pkey_bytes = encoder.get_bytes().to_vec();
-
-        let program = compile_program(&abi, "variant_block_signing_authority_v0")
-            .expect("failed to compile type");
-
-        let stack = vec![
-            Value::Condition(0),
-            420u32.into(),
-            Value::Condition(1),
-            Value::Bytes(pkey_bytes),
-            69u16.into(),
-        ];
-
-        let mut vm = PackVM::new(stack);
-
-        let result = vm.pack(&program)
-            .expect("failed to pack value");
-
-        println!("{:?}", result);
     }
 }

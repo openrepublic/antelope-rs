@@ -1,3 +1,4 @@
+#![feature(specialization)]
 pub mod api;
 pub mod base58;
 pub mod chain;

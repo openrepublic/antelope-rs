@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Copy, Clone, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct BinaryExtension<T: Packer + Default> {
-    value: Option<T>,
+    pub value: Option<T>,
 }
 
 impl<T> BinaryExtension<T>

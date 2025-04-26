@@ -1,0 +1,123 @@
+{
+  "version": "antelope-rs::test-abi/1.0",
+  "types": [
+  ],
+  "structs": [
+    {
+      "name": "test_enum_v0",
+      "base": "",
+      "fields": [
+        {
+          "name": "field",
+          "type": "uint64"
+        }
+      ]
+    },
+    {
+      "name": "test_enum_v1",
+      "base": "",
+      "fields": [
+        {
+          "name": "field",
+          "type": "float64"
+        }
+      ]
+    },
+    {
+      "name": "test_enum_v2",
+      "base": "",
+      "fields": [
+        {
+          "name": "field",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "test_struct",
+      "base": "",
+      "fields": [
+        {
+          "name": "field0",
+          "type": "bool"
+        },
+        {
+          "name": "field1",
+          "type": "uint32"
+        },
+        {
+          "name": "field2",
+          "type": "int32"
+        },
+        {
+          "name": "field3",
+          "type": "float32"
+        },
+        {
+          "name": "field4",
+          "type": "string[]"
+        },
+        {
+          "name": "field5",
+          "type": "bytes?"
+        },
+        {
+          "name": "field6",
+          "type": "test_enum"
+        },
+        {
+          "name": "field7",
+          "type": "bool"
+        },
+        {
+          "name": "field8",
+          "type": "uint32"
+        },
+        {
+          "name": "field9",
+          "type": "int32"
+        },
+        {
+          "name": "field10",
+          "type": "float32"
+        },
+        {
+          "name": "field11",
+          "type": "string?"
+        },
+        {
+          "name": "field12",
+          "type": "bytes?"
+        },
+        {
+          "name": "field13",
+          "type": "name?"
+        },
+        {
+          "name": "field_end0",
+          "type": "name$"
+        },
+        {
+          "name": "field_end1",
+          "type": "name$"
+        }
+      ]
+    }
+  ],
+  "actions": [],
+  "tables": [],
+  "ricardian_clauses": [],
+  "error_messages": [],
+  "abi_extensions": [],
+  "variants": [
+    {
+      "name": "test_enum",
+      "types": [
+        "test_enum_v0",
+        "test_enum_v1",
+        "test_enum_v2"
+      ]
+    }
+  ],
+  "action_results": []
+}

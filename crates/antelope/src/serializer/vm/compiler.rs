@@ -1,4 +1,4 @@
-use crate::chain::abi::{AbiStruct, AbiTable, AbiTypeDef, AbiVariant, ABI};
+use crate::chain::abi::{AbiStruct, AbiTable, AbiTypeDef, AbiVariant, ShipABI, ShipAbiTable, ABI};
 use crate::define_error;
 use crate::serializer::vm::{
     isa::{instruction_sequence_for, Exception, Instruction}
@@ -19,31 +19,28 @@ pub trait ABIView {
 }
 
 impl HasNameAndType for AbiTable {
-    fn name_str(&self) -> String {
-        self.name.to_string()
-    }
+    fn name_str(&self) -> String { self.name.to_string() }
+    fn type_str(&self) -> String { self.r#type.clone() }
+}
 
-    fn type_str(&self) -> String {
-        self.r#type.clone()
-    }
+impl HasNameAndType for ShipAbiTable {
+    fn name_str(&self) -> String { self.name.clone() }
+    fn type_str(&self) -> String { self.r#type.clone() }
 }
 
 impl ABIView for ABI {
-    fn types(&self) -> &[AbiTypeDef] {
-        &self.types
-    }
+    fn types(&self) -> &[AbiTypeDef] { &self.types }
+    fn structs(&self) -> &[AbiStruct] { &self.structs }
+    fn variants(&self) -> &[AbiVariant] { &self.variants }
+    fn tables(&self) -> &[impl HasNameAndType] { &self.tables }
+}
 
-    fn structs(&self) -> &[AbiStruct] {
-        &self.structs
-    }
 
-    fn variants(&self) -> &[AbiVariant] {
-        &self.variants
-    }
-
-    fn tables(&self) -> &[impl HasNameAndType] {
-        &self.tables
-    }
+impl ABIView for ShipABI {
+    fn types(&self) -> &[AbiTypeDef] { &self.types }
+    fn structs(&self) -> &[AbiStruct] { &self.structs }
+    fn variants(&self) -> &[AbiVariant] { &self.variants }
+    fn tables(&self) -> &[impl HasNameAndType] { &self.tables }
 }
 
 fn compile_optional<T: ABIView>(
@@ -53,8 +50,9 @@ fn compile_optional<T: ABIView>(
 ) -> Result<(), TypeCompileError> {
     let mut opt_stack = Vec::new();
     compile_type(abi, &type_name, &mut opt_stack)?;
+
     code.push(Instruction::Optional(opt_stack.len() as u8));
-    code.append(&mut opt_stack);
+    compile_type(abi, &type_name, code)?;
     Ok(())
 }
 
@@ -65,8 +63,9 @@ fn compile_extension<T: ABIView>(
 ) -> Result<(), TypeCompileError> {
     let mut ext_stack = Vec::new();
     compile_type(abi, &type_name, &mut ext_stack)?;
+
     code.push(Instruction::Extension(ext_stack.len() as u8));
-    code.append(&mut ext_stack);
+    compile_type(abi, &type_name, code)?;
     Ok(())
 }
 
@@ -81,7 +80,7 @@ fn compile_array<T: ABIView>(
     code.push(Instruction::PushCND);
     // first instruction of array loop
     let array_ptr = code.len();
-    code.append(&mut arr_stack);
+    compile_type(abi, &type_name, code)?;
     code.push(Instruction::JmpNotCND(array_ptr, 0, -1));
     code.push(Instruction::PopCND);
     Ok(())
@@ -211,36 +210,4 @@ pub fn compile_program<T: ABIView>(
     compile_type(abi, type_name, &mut code)?;
     code.push(Instruction::Exit(0));
     Ok(code)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::chain::abi::ABI;
-    use serde_json::from_str;
-
-    const ABI_JSON: &str = include_str!("eosio.json");
-
-    #[test]
-    fn test_compile_types() {
-        let abi: ABI = from_str(ABI_JSON).expect("failed to parse ABI JSON");
-
-        for type_name in [
-            "updateauth",
-            "variant_block_signing_authority_v0",
-            "voter_info",
-            "regproducer2",
-            "producer_info"
-        ] {
-            let program = compile_program(
-                &abi,
-                type_name,
-            ).expect("failed to compile type");
-
-            println!("Compiled stack for type {}:", type_name);
-            for (i, op) in program.iter().enumerate() {
-                println!("{}: {:?}", i, op);
-            }
-        }
-    }
 }
