@@ -228,6 +228,10 @@ impl<'a> Decoder<'a> {
         Self { buf: data, pos: 0 }
     }
 
+    pub fn reached_end(&self) -> bool {
+        self.pos == self.buf.len()
+    }
+
     /// Unpacks the given value from the decoder
     pub fn unpack<T>(&mut self, packer: &mut T) -> Result<usize, PackerError>
     where
@@ -236,6 +240,15 @@ impl<'a> Decoder<'a> {
         let size = packer.unpack(&self.buf[self.pos..])?;
         self.pos += size;
         Ok(size)
+    }
+
+    pub fn unpack_raw(&mut self, len: usize) -> Result<&[u8], PackerError> {
+        if self.pos + len > self.buf.len() {
+            return Err(packer_error!("unpack_raw overflow: {} > {}", self.pos + len, self.buf.len()));
+        }
+        let raw = &self.buf[self.pos..self.pos + len];
+        self.pos += len;
+        Ok(raw)
     }
 
     /// Returns the current position of the decoder

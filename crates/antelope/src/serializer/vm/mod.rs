@@ -1,15 +1,18 @@
 pub mod compiler;
+pub use compiler::compile_program;
 pub mod isa;
-
 pub use isa::{
     Value,
     Instruction,
     Exception,
-    instruction_sequence_for
+    instruction_sequence_for,
+    IOStackValue,
+    IntoIOStack
 };
-pub mod runtime;
-mod isa_impl;
 
+mod isa_impl;
+pub mod runtime;
 pub use runtime::{
-    PackVM
+    PackVM,
+    UnpackVM
 };

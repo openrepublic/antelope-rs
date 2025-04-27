@@ -1,8 +1,18 @@
+use tailcall::tailcall;
 use crate::chain::varint::VarUint32;
 use crate::packer_error;
-use crate::serializer::{Packer, PackerError};
-use crate::serializer::packer::Float128;
-use crate::serializer::vm::{Exception, PackVM, Value};
+use crate::serializer::{
+    Packer,
+    PackerError,
+    packer::Float128,
+    vm::{
+        isa_impl::common::OpResult,
+        Value,
+        Instruction,
+        Exception,
+        PackVM
+    }
+};
 
 macro_rules! type_mismatch {
     ($expected:expr, $self:ident) => {
@@ -30,157 +40,55 @@ macro_rules! debug_log {
     ($vm:expr, $instr:expr, $($args:tt)*) => {{}};
 }
 
-pub type PackOpResult = Result<(), PackerError>;
-
 #[inline(always)]
-pub fn boolean(vm: &mut PackVM) -> PackOpResult {
-    match vm.stack[vm.sp] {
-        Value::Bool(v) => {
-            v.pack(&mut vm.encoder);
-            vm.step();
-        }
-        _ => return type_mismatch!("Bool", vm)
-    }
-    debug_log!(vm, "bool", "()");
-    Ok(())
+pub fn step(vm: &mut PackVM) -> () {
+    vm.ip += 1;
+    vm.sp += 1;
 }
 
-#[inline(always)]
-pub fn uint8(vm: &mut PackVM) -> PackOpResult {
-    match vm.stack[vm.sp] {
-        Value::Uint8(v) => {
-            v.pack(&mut vm.encoder);
-            vm.step();
+macro_rules! impl_pack_op {
+    ($( ($fname:ident, $variant:ident, $dbg:literal) ),* $(,)?) => {$(
+        #[inline(always)]
+        pub fn $fname(vm: &mut PackVM) -> OpResult {
+            match vm.stack[vm.sp] {
+                Value::$variant(v) => {
+                    v.pack(&mut vm.encoder);
+                    step(vm);
+                }
+                _ => return type_mismatch!(stringify!($variant), vm),
+            }
+            debug_log!(vm, $dbg, "()");
+            Ok(())
         }
-        _ => return type_mismatch!("Uint8", vm)
-    }
-    debug_log!(vm, "uint8", "()");
-    Ok(())
+    )*};
 }
 
-#[inline(always)]
-pub fn uint16(vm: &mut PackVM) -> PackOpResult {
-    match vm.stack[vm.sp] {
-        Value::Uint16(v) => {
-            v.pack(&mut vm.encoder);
-            vm.step();
-        }
-        _ => return type_mismatch!("Uint16", vm)
-    }
-    debug_log!(vm, "uint16", "()");
-    Ok(())
-}
+impl_pack_op!(
+    (boolean,  Bool,    "bool"),
+
+    (uint8,    Uint8,   "uint8"),
+    (uint16,   Uint16,  "uint16"),
+    (uint32,   Uint32,  "uint32"),
+    (uint64,   Uint64,  "uint64"),
+    (uint128,  Uint128, "uint128"),
+
+    (int8,     Int8,    "int8"),
+    (int16,    Int16,   "int16"),
+    (int32,    Int32,   "int32"),
+    (int64,    Int64,   "int64"),
+    (int128,   Int128,  "int128"),
+
+    // IEEE-754 floats
+    (float32,  Float32, "float32"),
+    (float64,  Float64, "float64"),
+);
 
 #[inline(always)]
-pub fn uint32(vm: &mut PackVM) -> PackOpResult {
-    match vm.stack[vm.sp] {
-        Value::Uint32(v) => {
-            v.pack(&mut vm.encoder);
-            vm.step();
-        }
-        _ => return type_mismatch!("Uint32", vm)
-    }
-    debug_log!(vm, "uint32", "()");
-    Ok(())
-}
-
-#[inline(always)]
-pub fn uint64(vm: &mut PackVM) -> PackOpResult {
-    match vm.stack[vm.sp] {
-        Value::Uint64(v) => {
-            v.pack(&mut vm.encoder);
-            vm.step();
-        }
-        _ => return type_mismatch!("Uint64", vm)
-    }
-    debug_log!(vm, "uint64", "()");
-    Ok(())
-}
-
-#[inline(always)]
-pub fn uint128(vm: &mut PackVM) -> PackOpResult {
-    match vm.stack[vm.sp] {
-        Value::Uint128(v) => {
-            v.pack(&mut vm.encoder);
-            vm.step();
-        }
-        _ => return type_mismatch!("Uint128", vm)
-    }
-    debug_log!(vm, "uint128", "()");
-    Ok(())
-}
-
-#[inline(always)]
-pub fn int8(vm: &mut PackVM) -> PackOpResult {
-    match vm.stack[vm.sp] {
-        Value::Int8(v) => {
-            v.pack(&mut vm.encoder);
-            vm.step();
-        }
-        _ => return type_mismatch!("Int8", vm)
-    }
-    debug_log!(vm, "int8", "()");
-    Ok(())
-}
-
-#[inline(always)]
-pub fn int16(vm: &mut PackVM) -> PackOpResult {
-    match vm.stack[vm.sp] {
-        Value::Int16(v) => {
-            v.pack(&mut vm.encoder);
-            vm.step();
-        }
-        _ => return type_mismatch!("Int16", vm)
-    }
-    debug_log!(vm, "int16", "()");
-    Ok(())
-}
-
-#[inline(always)]
-pub fn int32(vm: &mut PackVM) -> PackOpResult {
-    match vm.stack[vm.sp] {
-        Value::Int32(v) => {
-            v.pack(&mut vm.encoder);
-            vm.step();
-        }
-        _ => return type_mismatch!("Int32", vm)
-    }
-    debug_log!(vm, "int32", "()");
-    Ok(())
-}
-
-#[inline(always)]
-pub fn int64(vm: &mut PackVM) -> PackOpResult {
-    match vm.stack[vm.sp] {
-        Value::Int64(v) => {
-            v.pack(&mut vm.encoder);
-            vm.step();
-        }
-        _ => return type_mismatch!("Int64", vm)
-    }
-    debug_log!(vm, "int64", "()");
-    Ok(())
-}
-
-#[inline(always)]
-pub fn int128(vm: &mut PackVM) -> PackOpResult {
-    match vm.stack[vm.sp] {
-        Value::Int128(v) => {
-            v.pack(&mut vm.encoder);
-            vm.step();
-        }
-        _ => return type_mismatch!("Int128", vm)
-    }
-    debug_log!(vm, "int128", "()");
-    Ok(())
-}
-
-#[inline(always)]
-pub fn varuint32(vm: &mut PackVM) -> PackOpResult {
+pub fn varuint32(vm: &mut PackVM) -> OpResult {
     match vm.stack[vm.sp] {
         Value::VarUInt32(v) => {
             VarUint32::new(v).pack(&mut vm.encoder);
-            vm.step();
+            step(vm);
         }
         _ => return type_mismatch!("VarUInt32", vm)
     }
@@ -189,37 +97,11 @@ pub fn varuint32(vm: &mut PackVM) -> PackOpResult {
 }
 
 #[inline(always)]
-pub fn float32(vm: &mut PackVM) -> PackOpResult {
-    match vm.stack[vm.sp] {
-        Value::Float32(v) => {
-            v.pack(&mut vm.encoder);
-            vm.step();
-        }
-        _ => return type_mismatch!("Float32", vm)
-    }
-    debug_log!(vm, "float32", "()");
-    Ok(())
-}
-
-#[inline(always)]
-pub fn float64(vm: &mut PackVM) -> PackOpResult {
-    match vm.stack[vm.sp] {
-        Value::Float64(v) => {
-            v.pack(&mut vm.encoder);
-            vm.step();
-        }
-        _ => return type_mismatch!("Float64", vm)
-    }
-    debug_log!(vm, "float64", "()");
-    Ok(())
-}
-
-#[inline(always)]
-pub fn float128(vm: &mut PackVM) -> PackOpResult {
+pub fn float128(vm: &mut PackVM) -> OpResult {
     match vm.stack[vm.sp] {
         Value::Float128(v) => {
             Float128::new(v).pack(&mut vm.encoder);
-            vm.step();
+            step(vm);
         }
         _ => return type_mismatch!("Float128", vm)
     }
@@ -228,11 +110,11 @@ pub fn float128(vm: &mut PackVM) -> PackOpResult {
 }
 
 #[inline(always)]
-pub fn bytes(vm: &mut PackVM) -> PackOpResult {
+pub fn bytes(vm: &mut PackVM) -> OpResult {
     match &vm.stack[vm.sp] {
         Value::Bytes(v) => {
             v.pack(&mut vm.encoder);
-            vm.step();
+            step(vm);
         }
         _ => return type_mismatch!("Bytes", vm)
     }
@@ -241,7 +123,7 @@ pub fn bytes(vm: &mut PackVM) -> PackOpResult {
 }
 
 #[inline(always)]
-pub fn bytes_raw(vm: &mut PackVM, len: u8) -> PackOpResult {
+pub fn bytes_raw(vm: &mut PackVM, len: u8) -> OpResult {
     match &vm.stack[vm.sp] {
         Value::Bytes(v) => {
             if len > 0 && v.len() != len as usize {
@@ -249,7 +131,7 @@ pub fn bytes_raw(vm: &mut PackVM, len: u8) -> PackOpResult {
             }
             let target = vm.encoder.alloc(v.len());
             target.copy_from_slice(v);
-            vm.step();
+            step(vm);
         }
         _ => return type_mismatch!("Bytes", vm)
     }
@@ -258,7 +140,7 @@ pub fn bytes_raw(vm: &mut PackVM, len: u8) -> PackOpResult {
 }
 
 #[inline(always)]
-pub fn optional(vm: &mut PackVM, stride: u8) -> PackOpResult {
+pub fn optional(vm: &mut PackVM, stride: u8) -> OpResult {
     match &vm.stack[vm.sp] {
         Value::None => {
             0u8.pack(&mut vm.encoder);      // marker
@@ -276,7 +158,7 @@ pub fn optional(vm: &mut PackVM, stride: u8) -> PackOpResult {
 }
 
 #[inline(always)]
-pub fn extension(vm: &mut PackVM, stride: u8) -> PackOpResult {
+pub fn extension(vm: &mut PackVM, stride: u8) -> OpResult {
     match vm.stack.get(vm.sp) {
         Some(Value::None) => {
             vm.sp += 1;                         // pop the sentinel
@@ -298,12 +180,12 @@ pub fn extension(vm: &mut PackVM, stride: u8) -> PackOpResult {
 }
 
 #[inline(always)]
-pub fn pushcnd(vm: &mut PackVM) -> PackOpResult {
+pub fn pushcnd(vm: &mut PackVM) -> OpResult {
     match vm.stack[vm.sp] {
         Value::Condition(cnd) => {
             vm.cndstack.push(cnd);
             vm.csp += 1;
-            vm.step();
+            step(vm);
             VarUint32::new(cnd as u32).pack(&mut vm.encoder);
         }
         _ => return type_mismatch!("Condition", vm)
@@ -313,7 +195,7 @@ pub fn pushcnd(vm: &mut PackVM) -> PackOpResult {
 }
 
 #[inline(always)]
-pub fn popcnd(vm: &mut PackVM) -> PackOpResult {
+pub fn popcnd(vm: &mut PackVM) -> OpResult {
     vm.cndstack.pop();
     vm.csp -= 1;
     vm.ip += 1;
@@ -321,14 +203,14 @@ pub fn popcnd(vm: &mut PackVM) -> PackOpResult {
     Ok(())
 }
 
-pub fn jmp(vm: &mut PackVM, ptr: usize) -> PackOpResult {
+pub fn jmp(vm: &mut PackVM, ptr: usize) -> OpResult {
     vm.ip = ptr;
     debug_log!(vm, "jmp", "({})", ptr);
     Ok(())
 }
 
 #[inline(always)]
-pub fn jmpcnd(vm: &mut PackVM, target: usize, value: isize, delta: isize) -> PackOpResult {
+pub fn jmpcnd(vm: &mut PackVM, target: usize, value: isize, delta: isize) -> OpResult {
     vm.cndstack[vm.csp] += delta;
     if vm.cndstack[vm.csp] == value {
         vm.ip = target;       // branch taken
@@ -349,7 +231,7 @@ pub fn jmpcnd(vm: &mut PackVM, target: usize, value: isize, delta: isize) -> Pac
 }
 
 #[inline(always)]
-pub fn jmpnotcnd(vm: &mut PackVM, target: usize, value: isize, delta: isize) -> PackOpResult {
+pub fn jmpnotcnd(vm: &mut PackVM, target: usize, value: isize, delta: isize) -> OpResult {
     vm.cndstack[vm.csp] += delta;
     if vm.cndstack[vm.csp] != value {
         vm.ip = target;       // branch taken
@@ -370,8 +252,8 @@ pub fn jmpnotcnd(vm: &mut PackVM, target: usize, value: isize, delta: isize) -> 
 }
 
 #[inline(always)]
-pub fn raise(vm: &PackVM, e: &Exception) -> PackOpResult {
-    #[allow(unused_variables)]
+#[cfg_attr(feature = "debug_vm", allow(unused_variables))]
+pub fn raise(vm: &PackVM, e: &Exception) -> OpResult {
     debug_log!(
         vm,
         "raise",
@@ -381,12 +263,53 @@ pub fn raise(vm: &PackVM, e: &Exception) -> PackOpResult {
 }
 
 #[inline(always)]
+#[cfg_attr(feature = "debug_vm", allow(unused_variables))]
 pub fn exit(vm: &mut PackVM, status: u8) -> Result<u8, PackerError> {
-    #[allow(unused_variables)]
     debug_log!(
         vm,
         "exit",
         "({})", status
     );
     Ok(status)
+}
+
+#[tailcall]
+pub fn exec(vm: &mut PackVM, _z: ()) -> Result<u8, PackerError> {
+    match &vm.program[vm.ip] {
+        Instruction::Bool => { boolean(vm)?; exec(vm, _z) }
+
+        Instruction::UInt(1) => { uint8(vm)?; exec(vm, _z) }
+        Instruction::UInt(2) => { uint16(vm)?; exec(vm, _z) }
+        Instruction::UInt(4) => { uint32(vm)?; exec(vm, _z) }
+        Instruction::UInt(8) => { uint64(vm)?; exec(vm, _z) }
+        Instruction::UInt(16) => { uint128(vm)?; exec(vm, _z) }
+
+        Instruction::Int(1) => { int8(vm)?; exec(vm, _z) }
+        Instruction::Int(2) => { int16(vm)?; exec(vm, _z) }
+        Instruction::Int(4) => { int32(vm)?; exec(vm, _z) }
+        Instruction::Int(8) => { int64(vm)?; exec(vm, _z) }
+        Instruction::Int(16) => { int128(vm)?; exec(vm, _z) }
+
+        Instruction::VarUInt => { varuint32(vm)?; exec(vm, _z) }
+        // Instruction::VarInt => unreachable!(),
+
+        Instruction::Float(4) => { float32(vm)?; exec(vm, _z) }
+        Instruction::Float(8) => { float64(vm)?; exec(vm, _z) }
+        Instruction::Float(16) => { float128(vm)?; exec(vm, _z) }
+
+        Instruction::Bytes => { bytes(vm)?; exec(vm, _z) }
+        Instruction::BytesRaw(l) => { bytes_raw(vm, *l)?; exec(vm, _z) }
+
+        Instruction::Optional(s) => { optional(vm, *s)?; exec(vm, _z) }
+        Instruction::Extension(s) => { extension(vm, *s)?; exec(vm, _z) }
+
+        Instruction::PushCND => { pushcnd(vm)?; exec(vm, _z) }
+        Instruction::PopCND => { popcnd(vm)?; exec(vm, _z) }
+        Instruction::Jmp(ptr) => { jmp(vm, *ptr)?; exec(vm, _z) }
+        Instruction::JmpCND(t, v, d) => { jmpcnd(vm, *t, *v, *d)?; exec(vm, _z) }
+        Instruction::JmpNotCND(t, v, d) => { jmpnotcnd(vm, *t, *v, *d)?; exec(vm, _z) }
+        Instruction::Raise(e) => { raise(vm, e)?; exec(vm, _z) }
+        Instruction::Exit(s) => { exit(vm, *s) }
+        _ => unreachable!()
+    }
 }

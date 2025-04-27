@@ -9,11 +9,9 @@ use antelope::serializer::{
     vm::{
         PackVM,
         Value,
-        isa::{
-            IOStackValue,
-            IntoIOStack
-        },
-        compiler::compile_program
+        IOStackValue,
+        IntoIOStack,
+        compile_program
     }
 };
 use antelope_client_macros::{EnumPacker, StackEnum, StackStruct, StructPacker};
@@ -24,10 +22,9 @@ const TESTABI: &str = include_str!("test_abi.json");
 macro_rules! pack_value_and_assert {
     ($type_name:expr, $value:expr, $expected:expr) => {
         let abi: ShipABI = from_str(STDABI).expect("failed to parse ABI JSON");
-        let mut vm = PackVM::new($value.to_vec());
         let program = compile_program(&abi, $type_name)
             .expect(&format!("No instruction sequence for {}", $type_name));
-        let encoded = vm.pack(&program).expect("Pack failed");
+        let encoded = PackVM::run(&program, $value).expect("Pack failed");
         assert_eq!(encoded, $expected);
     };
 }
@@ -140,8 +137,8 @@ fn test_pack_extension() {
     BinaryExtension::<u32>::new(None).pack(&mut enc);
     pack_value_and_assert!("uint32$", &[Value::None], enc.get_bytes());
 
-    let emtpy: [u8; 0] = [];
-    pack_value_and_assert!("uint32$", &[], &emtpy);
+    let empty: [u8; 0] = [];
+    pack_value_and_assert!("uint32$", &[], &empty);
 }
 
 #[test]
@@ -207,7 +204,6 @@ fn test_pack_struct() {
 
 
     let abi: ABI = from_str(TESTABI).expect("failed to parse ABI JSON");
-    let mut vm = PackVM::new(stack);
     let program = compile_program(&abi, "test_struct")
         .expect("No instruction sequence for test_struct");
 
@@ -215,6 +211,6 @@ fn test_pack_struct() {
         println!("{:?}", op);
     }
 
-    let encoded = vm.pack(&program).expect("Pack failed");
+    let encoded = PackVM::run(&program, &stack).expect("Pack failed");
     assert_eq!(encoded, enc.get_bytes());
 }
