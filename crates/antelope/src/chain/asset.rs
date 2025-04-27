@@ -183,7 +183,7 @@ pub struct Asset {
     symbol: Symbol,
 }
 
-define_error!(crate::chain::asset, AssetOpError);
+define_error!(AssetOpError);
 
 #[derive(Copy, Clone, Eq, PartialEq)]
 enum AssetStringParseStatus {

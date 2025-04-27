@@ -122,8 +122,8 @@ impl Action {
 impl Default for Action {
     fn default() -> Self {
         Self {
-            account: Name { n: 0 },
-            name: Name { n: 0 },
+            account: Name::default(),
+            name: Name::default(),
             authorization: Vec::new(),
             data: Vec::new(),
         }

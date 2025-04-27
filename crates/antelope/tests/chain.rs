@@ -424,17 +424,17 @@ fn transaction() {
 #[test]
 fn permission_level() {
     // Create PermissionLevel from 'foo@bar'
-    let perm = PermissionLevel::new(Name::new_from_str("foo"), Name::new_from_str("bar"));
+    let perm = PermissionLevel::new(name!("foo"), name!("bar"));
 
     // Test equals with itself
     assert_eq!(perm, perm.clone());
 
     // Test equals with equivalent ActorPermission
-    let other_perm = PermissionLevel::new(Name::new_from_str("foo"), Name::new_from_str("bar"));
+    let other_perm = PermissionLevel::new(name!("foo"), name!("bar"));
     assert_eq!(perm, other_perm);
 
     // Test equals with different PermissionLevel
-    let different_perm = PermissionLevel::new(Name::new_from_str("bar"), Name::new_from_str("moo"));
+    let different_perm = PermissionLevel::new(name!("bar"), name!("moo"));
     assert_ne!(perm, different_perm);
 }
 
@@ -606,15 +606,15 @@ fn transaction_signature_verification() {
     // Decoding checks
     {
         let action = transaction.actions.first().unwrap();
-        let sender = action.authorization.first().unwrap().actor.as_string();
-        println!("Contract account: {}", action.account.as_string());
-        println!("Action name: {}", action.name.as_string());
+        let sender = action.authorization.first().unwrap().actor.as_string().unwrap();
+        println!("Contract account: {}", action.account.as_string().unwrap());
+        println!("Action name: {}", action.name.as_string().unwrap());
         println!("Sender: {}", sender);
         println!("Request data: {:?}", action.data);
         println!();
 
-        assert_eq!(action.account.as_string(), "eosio.aggreq");
-        assert_eq!(action.name.as_string(), "requestaggr");
+        assert_eq!(action.account.as_string().unwrap(), "eosio.aggreq");
+        assert_eq!(action.name.as_string().unwrap(), "requestaggr");
         assert_eq!(sender, "alice");
         assert_eq!(
             action.data,

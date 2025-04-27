@@ -1,30 +1,8 @@
 use core::mem::size_of;
-use std::fmt;
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
-use crate::{chain::varint::VarUint32, util::slice_copy};
+use crate::{chain::varint::VarUint32, define_error, util::slice_copy};
 
-#[derive(Debug, Error)]
-#[error("{reason}")]
-pub struct PackerError {
-    pub reason: String,
-}
-
-impl PackerError {
-    /// Works like `format!()` but for constructing the error
-    pub fn new(args: impl fmt::Display) -> Self {
-        Self {
-            reason: args.to_string(),
-        }
-    }
-
-    /// More ergonomic version that takes `format_args!()` directly
-    pub fn fmt(args: fmt::Arguments<'_>) -> Self {
-        Self {
-            reason: args.to_string(),
-        }
-    }
-}
+define_error!(PackerError);
 
 #[macro_export]
 macro_rules! packer_error {

@@ -18,6 +18,6 @@ pub mod varint;
 #[macro_export]
 macro_rules! name {
     ($str:expr) => {
-        Name::new_from_str($str)
+        Name::try_from($str).expect(&format!("Invalid name: \"{}\"", $str))
     };
 }

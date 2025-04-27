@@ -70,7 +70,7 @@ fn bytes() {
 #[test]
 fn name() {
     let data = "000000005c73285d";
-    let name1 = Name::new_from_str("foobar");
+    let name1 = name!("foobar");
 
     assert_eq!(bytes_to_hex(&Encoder::pack(&name1)), data);
     let data_bytes = hex_to_bytes(data);
@@ -78,9 +78,9 @@ fn name() {
     let mut name2 = Name::default();
     decoder.unpack(&mut name2).unwrap();
     assert_eq!(name1, name2);
-    let name3 = Name::from_u64(6712742083569909760);
+    let name3 = Name::try_from(6712742083569909760u64).unwrap();
     assert_eq!(name1, name3);
-    assert_eq!(Name::from_u64(0).to_string(), "");
+    assert_eq!(Name::try_from(0).unwrap().to_string(),  "");
     assert_eq!(name!(".me").to_string(), ".me");
     assert_eq!(name!("you").to_string(), "you");
     assert_eq!(name!("you.me").to_string(), "you.me");

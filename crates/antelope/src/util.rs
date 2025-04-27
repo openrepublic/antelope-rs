@@ -40,7 +40,7 @@ pub fn zlib_compress(bytes: &[u8]) -> Result<Vec<u8>, String> {
 
 #[macro_export]
 macro_rules! define_error {
-    ($crate_path:path, $name:ident) => {
+    ($name:ident) => {
         #[derive(Debug, ::thiserror::Error)]
         #[error("{reason}")]
         pub struct $name {
