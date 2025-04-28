@@ -2,7 +2,11 @@ use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::{chain::{
     checksum::Checksum256,
-    name::{deserialize_name, Name},
+    name::{
+        serialize_name,
+        deserialize_name,
+        Name
+    },
     varint::VarUint32,
 }, check_unpack_len, serializer::{Decoder, Encoder, Packer}};
 use serde_json::Value;
@@ -11,10 +15,16 @@ use crate::serializer::PackerError;
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Default, Serialize, Deserialize)]
 pub struct PermissionLevel {
     /// The account holding the permission.
-    #[serde(deserialize_with = "deserialize_name")]
+    #[serde(
+        serialize_with = "serialize_name",
+        deserialize_with = "deserialize_name"
+    )]
     pub actor: Name,
     /// The permission type.
-    #[serde(deserialize_with = "deserialize_name")]
+    #[serde(
+        serialize_with = "serialize_name",
+        deserialize_with = "deserialize_name"
+    )]
     pub permission: Name,
 }
 

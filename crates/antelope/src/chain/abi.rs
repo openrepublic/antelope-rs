@@ -2,7 +2,11 @@ use antelope_client_macros::StructPacker;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    chain::name::{deserialize_name, Name},
+    chain::name::{
+        serialize_name,
+        deserialize_name,
+        Name
+    },
     serializer::{Decoder, Encoder, Packer, PackerError},
 };
 
@@ -67,7 +71,10 @@ pub struct AbiVariant {
 
 #[derive(Debug, Clone, Default, Eq, PartialEq, Serialize, Deserialize, StructPacker)]
 pub struct AbiAction {
-    #[serde(deserialize_with = "deserialize_name")]
+    #[serde(
+        serialize_with = "serialize_name",
+        deserialize_with = "deserialize_name"
+    )]
     pub name: Name,
     pub r#type: String,
     pub ricardian_contract: String,
@@ -75,7 +82,10 @@ pub struct AbiAction {
 
 #[derive(Debug, Clone, Default, Eq, PartialEq, Serialize, Deserialize, StructPacker)]
 pub struct AbiTable {
-    #[serde(deserialize_with = "deserialize_name")]
+    #[serde(
+        serialize_with = "serialize_name",
+        deserialize_with = "deserialize_name"
+    )]
     pub name: Name,
     #[serde(default)]
     pub index_type: String,
@@ -94,7 +104,10 @@ pub struct AbiClause {
 
 #[derive(Debug, Clone, Default, Eq, PartialEq, Serialize, Deserialize, StructPacker)]
 pub struct AbiActionResult {
-    #[serde(deserialize_with = "deserialize_name")]
+    #[serde(
+        serialize_with = "serialize_name",
+        deserialize_with = "deserialize_name"
+    )]
     pub name: Name,
     pub result_type: String,
 }

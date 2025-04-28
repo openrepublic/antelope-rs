@@ -1,7 +1,9 @@
 use std::fmt::{Display, Formatter};
 
-use serde::de::{Error, SeqAccess};
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::de::{SeqAccess};
+use serde::de::Error as SerdeDeError;
+use serde::ser::Error as SerdeSerError;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::{check_unpack_len, define_error};
 use crate::serializer::{Encoder, Packer, PackerError};
 
@@ -311,6 +313,52 @@ where
     }
 
     deserializer.deserialize_seq(VecNameVisitor)
+}
+
+pub(crate) fn serialize_name<S>(name: &Name, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    serializer.serialize_str(
+        &name.as_string()
+            .map_err(|e| S::Error::custom(e))?
+    )
+}
+
+#[allow(dead_code)]
+pub(crate) fn serialize_optional_name<S>(
+    name: &Option<Name>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    match name {
+        Some(n) => serializer.serialize_some(
+            &n.as_string()
+                .map_err(|e| S::Error::custom(e))?
+        ),
+        None => serializer.serialize_none(),
+    }
+}
+
+
+#[allow(dead_code)]
+pub(crate) fn serialize_vec_name<S>(
+    names: &Vec<Name>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let mut strings = Vec::new();
+    for name in names {
+        strings.push(
+            name.as_string()
+                .map_err(|e| S::Error::custom(e))?
+        );
+    }
+    serializer.collect_seq(strings)
 }
 
 pub const SAME_PAYER: Name = Name { n: 0 };

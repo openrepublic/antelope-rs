@@ -15,6 +15,16 @@ use sha2::Sha256;
 
 mod test_bytes;
 
+const TEST_ABI: &str = include_str!("typestresser.abi.json");
+
+#[test]
+fn test_abi_json() {
+    let abi: ABI = serde_json::from_str(TEST_ABI).expect("Type Stresser ABI deserialization failed");
+    let abi_str = serde_json::to_string(&abi).expect("Type Stresser ABI serialization failed");
+    let new_abi = serde_json::from_str(abi_str.as_str()).expect("Type Stresser ABI deserialization failed");
+    assert_eq!(abi, new_abi);
+}
+
 #[test]
 fn array() {
     let data = "0303666f6f036261720362617a";
