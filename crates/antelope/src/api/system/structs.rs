@@ -27,8 +27,12 @@ impl CreateAccountParams {
             owner,
             active,
             ram_bytes: 10_048_576,
-            stake_net: Asset::new(10_000, Symbol::new("TLOS", 4)),
-            stake_cpu: Asset::new(10_000, Symbol::new("TLOS", 4)),
+            stake_net: Asset::try_from(
+                (10_000, Symbol::try_from(("TLOS", 4)).unwrap())
+            ).unwrap(),
+            stake_cpu: Asset::try_from(
+                (10_000, Symbol::try_from(("TLOS", 4)).unwrap())
+            ).unwrap(),
             transfer: true,
         }
     }

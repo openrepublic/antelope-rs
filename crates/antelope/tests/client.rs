@@ -1,3 +1,4 @@
+use std::str::FromStr;
 use antelope::api::v1::structs::{ErrorResponse, SendTransactionResponse, TransactionState};
 use antelope::chain::block_id::BlockId;
 use antelope::chain::time::TimePoint;
@@ -15,7 +16,6 @@ use antelope::{
 mod utils;
 use utils::mock_provider::MockProvider;
 
-use crate::utils::mock_provider;
 use crate::utils::mock_provider::{make_mock_transaction, sign_mock_transaction};
 
 #[tokio::test]
@@ -73,7 +73,7 @@ async fn chain_send_transaction() {
     let client = APIClient::custom_provider(mock_provider).unwrap();
     //let client = APIClient::default_provider(String::from("https://testnet.telos.caleos.io")).unwrap();
     let info = client.v1_chain.get_info().await.unwrap();
-    let transaction = make_mock_transaction(&info, Asset::from_string("0.0420 TLOS"));
+    let transaction = make_mock_transaction(&info, Asset::from_str("0.0420 TLOS").unwrap());
     let signed_transaction = sign_mock_transaction(&transaction, &info);
     let result = client.v1_chain.send_transaction(signed_transaction).await;
     assert!(result.is_ok(), "Transaction result should be ok");
@@ -104,9 +104,9 @@ async fn chain_send_transaction() {
     // detect errors in v1_chain.send_transaction and test for the error struct
     // values
     let invalid_transaction =
-        mock_provider::make_mock_transaction(&info, Asset::from_string("0.0420 NUNYA"));
+        make_mock_transaction(&info, Asset::from_str("0.0420 NUNYA").unwrap());
     let signed_invalid_transaction =
-        mock_provider::sign_mock_transaction(&invalid_transaction, &info);
+        sign_mock_transaction(&invalid_transaction, &info);
     let failed_result = client
         .v1_chain
         .send_transaction(signed_invalid_transaction)
@@ -141,7 +141,7 @@ async fn chain_get_account() {
 
             assert_eq!(
                 account.core_liquid_balance,
-                Some(Asset::from_string("128559.5000 TLOS"))
+                Some(Asset::from_str("128559.5000 TLOS").unwrap())
             );
         }
         Err(e) => {

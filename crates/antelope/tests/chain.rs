@@ -1,3 +1,4 @@
+use std::str::FromStr;
 use antelope::chain::authority::{Authority, KeyWeight, WaitWeight};
 use antelope::chain::key_type::KeyType;
 use antelope::chain::private_key::PrivateKey;
@@ -28,17 +29,17 @@ fn asset() {
     // DUCKS') assert.equal(Asset.from('-0.0000000000001 DUCKS').toString(),
     // '-0.0000000000001 DUCKS')
     assert_eq!(
-        Asset::from_string("0.0000000000000 DUCKS").to_string(),
+        Asset::from_str("0.0000000000000 DUCKS").unwrap().to_string(),
         "0.0000000000000 DUCKS"
     );
     assert_eq!(
-        Asset::from_string("99999999999 DUCKS").to_string(),
+        Asset::from_str("99999999999 DUCKS").unwrap().to_string(),
         "99999999999 DUCKS"
     );
 
-    let asset = Asset::from_string("1.000000000 FOO");
+    let asset = Asset::from_str("1.000000000 FOO").unwrap();
     assert_eq!(asset.amount(), 1000000000);
-    let new_asset = asset + asset;
+    let new_asset = asset.try_add(asset).unwrap();
     assert_eq!(new_asset.amount(), 2000000000);
     /* TODO: Support negative?
     asset.value = -100
@@ -46,7 +47,7 @@ fn asset() {
     assert.equal(asset.units.toString(), '-100000000000')
     */
 
-    let symbol = Symbol::new("K", 10);
+    let symbol = Symbol::try_from(("K", 10)).unwrap();
     assert_eq!(symbol.code().to_string(), "K");
     assert_eq!(symbol.precision(), 10);
     assert_eq!(symbol.to_string(), "10,K");
@@ -255,7 +256,7 @@ fn transaction() {
     let transfer_data = Transfer {
         from: name!("foo"),
         to: name!("bar"),
-        quantity: Asset::from_string("1.0000 EOS"),
+        quantity: Asset::from_str("1.0000 EOS").unwrap(),
         memo: String::from("hello"),
     };
 
