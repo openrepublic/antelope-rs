@@ -2,20 +2,16 @@ use std::fmt::{Debug, Display, Formatter};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    base58::{decode_key, encode_check, encode_ripemd160_check},
-    chain::{
-        checksum::Checksum512, key_type::KeyType, public_key::PublicKey, signature::Signature,
-    },
-    crypto::{
-        generate::generate, get_public::get_public, shared_secrets::shared_secret, sign::sign,
-    },
-};
+use crate::{base58::{decode_key, encode_check, encode_ripemd160_check}, chain::{
+    checksum::Checksum512, key_type::KeyType, public_key::PublicKey, signature::Signature,
+}, crypto::{
+    generate::generate, get_public::get_public, shared_secrets::shared_secret, sign::sign,
+}, define_error};
 
-#[derive(Default, Clone, Serialize, Deserialize)]
+#[derive(Default, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PrivateKey {
     pub key_type: KeyType,
-    value: Vec<u8>,
+    pub value: Vec<u8>,
 }
 
 impl PrivateKey {
@@ -85,8 +81,8 @@ impl PrivateKey {
     }
 
     pub fn random(key_type: KeyType) -> Result<Self, String> {
-        let secret_bytes = generate(key_type);
-        Ok(Self::from_bytes(secret_bytes.unwrap(), key_type))
+        let secret_bytes = generate(key_type)?;
+        Ok(Self::from_bytes(secret_bytes[1..].to_vec(), key_type))
     }
 }
 
@@ -99,5 +95,20 @@ impl Display for PrivateKey {
 impl Debug for PrivateKey {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.as_string())
+    }
+}
+
+define_error!(PrivateKeyParsingError);
+
+impl TryFrom<&str> for PrivateKey {
+    type Error = PrivateKeyParsingError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        let (key_type, value) = decode_key(value, false)
+            .map_err(|e| PrivateKeyParsingError::new(e.to_string()))?;
+
+        Ok(PrivateKey {
+            key_type, value
+        })
     }
 }
