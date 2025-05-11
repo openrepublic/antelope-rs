@@ -187,7 +187,13 @@ macro_rules! impl_int_tryfrom {
     )*};
 }
 
-impl_int_tryfrom!(u8, u16, u32, u64, i8, i16, i32, i64);
+impl_int_tryfrom!(u8, u16, u32, i8, i16, i32, i64);
+
+impl From<u64> for Name {
+    fn from(value: u64) -> Self {
+        Name { n: value }
+    }
+}
 
 /* ---------- Conversions *out of* Name ---------- */
 
