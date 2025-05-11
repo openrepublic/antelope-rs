@@ -1,8 +1,4 @@
-use crate::{
-    base58::{decode_public_key, encode_ripemd160_check},
-    chain::{key_type::KeyType},
-    util::bytes_to_hex,
-};
+use crate::{base58::{decode_public_key, encode_ripemd160_check}, chain::{key_type::KeyType}, define_error, util::bytes_to_hex};
 use serde::{Deserialize, Deserializer, Serialize};
 use std::fmt;
 use std::fmt::{Display, Formatter};
@@ -66,17 +62,28 @@ impl PublicKey {
     }
 
     pub fn new_from_str(value: &str) -> Result<Self, String> {
+        PublicKey::try_from(value)
+            .map_err(|e| e.to_string())
+    }
+
+    pub fn from_bytes(value: Vec<u8>, key_type: KeyType) -> Self {
+        PublicKey { key_type, value }
+    }
+}
+
+define_error!(PublicKeyParsingError);
+
+impl TryFrom<&str> for PublicKey {
+    type Error = PublicKeyParsingError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
         match decode_public_key(value) {
             Ok(decoded) => Ok(PublicKey {
                 key_type: decoded.0,
                 value: decoded.1,
             }),
-            Err(err_string) => Err(err_string),
+            Err(err_string) => Err(PublicKeyParsingError::new(err_string)),
         }
-    }
-
-    pub fn from_bytes(value: Vec<u8>, key_type: KeyType) -> Self {
-        PublicKey { key_type, value }
     }
 }
 
