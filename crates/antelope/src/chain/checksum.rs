@@ -176,7 +176,7 @@ impl Packer for Checksum256 {
     }
 }
 
-#[derive(Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Eq, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Checksum512 {
     #[serde(with = "BigArray")]
     pub data: [u8; 64],
