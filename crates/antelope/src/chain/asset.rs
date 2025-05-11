@@ -325,28 +325,27 @@ impl Asset {
 }
 
 impl Display for Asset {
+    #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let mut part1: i64 = self.amount;
+        let prec = self.symbol.precision() as u32;
 
-        for _ in 0..self.symbol.precision() {
-            part1 /= 10;
+        // 10^prec  (precision is <= 18 in EOSIO, so this never overflows i64)
+        let pow10 = 10_i64.pow(prec);
+
+        // split into integer and fractional parts
+        let int_part = self.amount / pow10;
+        let frac_part = (self.amount.abs() % pow10) as u64; // always non-negative
+
+        // integer
+        write!(f, "{int_part}")?;
+
+        // fractional (only if precision > 0)
+        if prec != 0 {
+            // leading-zero padded to exactly `prec` digits
+            write!(f, ".{:0width$}", frac_part, width = prec as usize)?;
         }
 
-        let mut decimal = String::with_capacity(self.symbol.precision());
-
-        let mut tmp: i64 = self.amount;
-        for i in (0..self.symbol.precision()).rev() {
-            decimal.insert(i, (b'0' + (tmp % 10) as u8) as char);
-            tmp /= 10;
-        }
-        if !decimal.is_empty() {
-            decimal = String::from(".") + &decimal;
-        }
-
-        write!(
-            f, "{}",
-            part1.to_string() + decimal.as_str() + " " + &self.symbol.code().to_string()
-        )
+        write!(f, " {}", self.symbol.code())
     }
 }
 
