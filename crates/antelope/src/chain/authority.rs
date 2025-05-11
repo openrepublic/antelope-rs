@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 // Assuming basic types like PublicKey and PermissionLevel are defined elsewhere
 
 /// KeyWeight associates a PublicKey with a Weight.
-#[derive(Serialize, Deserialize, Debug, Clone, Default, StructPacker)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, StructPacker)]
 pub struct KeyWeight {
     #[serde(deserialize_with = "deserialize_public_key")]
     pub key: PublicKey,
@@ -15,21 +15,21 @@ pub struct KeyWeight {
 }
 
 /// PermissionLevelWeight associates a PermissionLevel with a Weight.
-#[derive(Serialize, Deserialize, Debug, Clone, Default, StructPacker)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, StructPacker)]
 pub struct PermissionLevelWeight {
     pub permission: PermissionLevel,
     pub weight: u16,
 }
 
 /// WaitWeight associates a wait time (in seconds) with a Weight.
-#[derive(Serialize, Deserialize, Debug, Clone, Default, StructPacker)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, StructPacker)]
 pub struct WaitWeight {
     pub wait_sec: u32,
     pub weight: u16,
 }
 
 /// Authority defines a set of keys and/or accounts that can authorize an action.
-#[derive(Serialize, Deserialize, Debug, Clone, Default, StructPacker)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, StructPacker)]
 pub struct Authority {
     pub threshold: u32,
     pub keys: Vec<KeyWeight>,
