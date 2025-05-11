@@ -26,7 +26,7 @@ use crate::serializer::{Encoder, Packer, PackerError};
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Signature {
     pub key_type: KeyType,
-    value: Vec<u8>,
+    pub value: Vec<u8>,
 }
 
 impl Signature {
