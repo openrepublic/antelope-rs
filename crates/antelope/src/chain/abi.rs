@@ -1,32 +1,18 @@
+use std::collections::HashSet;
+use std::string::ToString;
+use std::fmt;
 use crate::serializer::{Decoder, Encoder, Packer, PackerError};
 use antelope_client_macros::StructPacker;
 use serde::{Deserialize, Serialize};
-use crate::{
-    chain::name::{
-        serialize_name,
-        deserialize_name,
-        Name
-    },
-};
+use once_cell::unsync::Lazy;
+use crate::{chain::name::{
+    serialize_name,
+    deserialize_name,
+    Name
+}, define_error};
 
-#[derive(Debug, Clone)]
-pub enum ABIResolvedType {
-    Standard(String),
-    Variant(AbiVariant),
-    Struct(AbiStruct),
-    Optional(Box<ABIResolvedType>),
-    Array(Box<ABIResolvedType>),
-    Extension(Box<ABIResolvedType>),
-}
-
-pub const STD_TYPES: [&str; 33] = [
+pub const BUILTIN_TYPES: Lazy<HashSet<&str>> = Lazy::new(|| HashSet::from([
     "bool",
-
-    "int8",
-    "int16",
-    "int32",
-    "int64",
-    "int128",
 
     "uint8",
     "uint16",
@@ -34,106 +20,195 @@ pub const STD_TYPES: [&str; 33] = [
     "uint64",
     "uint128",
 
+    "int8",
+    "int16",
+    "int32",
+    "int64",
+    "int128",
+
     "varuint32",
+    "varint32",
 
     "float32",
     "float64",
+    "float128",
+
+    "time_point",
+    "time_point_sec",
+    "block_timestamp_type",
+
+    "name",
 
     "bytes",
     "string",
 
-    "rd160",
-    "sha256",
     "checksum160",
     "checksum256",
     "checksum512",
 
-    "transaction_id",
-
-    "name",
-    "account_name",
-
-    "symbol_code",
-    "symbol",
-    "asset",
-    "extended_asset",
-
     "public_key",
     "signature",
 
-    "block_timestamp_type",
-    "time_point",
-    "time_point_sec",
-];
+    "symbol",
+    "symbol_code",
 
-pub trait ABITypeResolver {
-    fn resolve_type(&self, str: &str) -> Option<(ABIResolvedType, String)>;
+    "asset",
+    "extended_asset"
+]));
+
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub enum TypeModifier {
+    Optional,
+    Extension,
+    Array,
 }
 
-pub trait HasNameAndType {
+impl TypeModifier {
+    #[inline]
+    pub const fn suffix(&self) -> &'static str {
+        match self {
+            TypeModifier::Optional  => "?",
+            TypeModifier::Extension => "$",
+            TypeModifier::Array     => "[]",
+        }
+    }
+
+    #[inline]
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            TypeModifier::Optional  => "optional",
+            TypeModifier::Extension => "extension",
+            TypeModifier::Array     => "array",
+        }
+    }
+}
+
+impl fmt::Display for TypeModifier {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ABIResolvedType {
+    pub original_name: String,
+    pub resolved_name: String,
+    pub is_std: bool,
+    pub is_alias: bool,
+    pub is_struct: bool,
+    pub is_variant: bool,
+    pub modifiers: Vec<TypeModifier>,
+}
+
+fn split_type_modifiers(mut name: &str) -> Result<(String, Vec<TypeModifier>), ABIResolveError> {
+    use TypeModifier::*;
+    let mut mods = Vec::<TypeModifier>::new();
+
+    loop {
+        if let Some(stripped) = name.strip_suffix("[]") {
+            mods.push(Array);
+            name = stripped;
+            continue;
+        }
+        if let Some(stripped) = name.strip_suffix('?') {
+            mods.push(Optional);
+            name = stripped;
+            continue;
+        }
+        if let Some(stripped) = name.strip_suffix('$') {
+            mods.push(Extension);
+            name = stripped;
+            continue;
+        }
+        // detect forbidden fixed-size arrays
+        if name.ends_with(']') && name.rfind('[').map_or(false, |lb| name[lb+1..name.len()-1].chars().all(char::is_numeric))
+        {
+            return Err(ABIResolveError::fmt(format_args!(
+                "Fixed-size arrays like “{}” are not supported", name)));
+        }
+        break;
+    }
+    Ok((name.to_string(), mods))               // outer-first order, like py-jitabi
+}
+
+define_error!(ABIResolveError);
+
+pub trait ABITypeResolver {
+    fn resolve_type(&self, str: &str) -> Result<ABIResolvedType, ABIResolveError>;
+}
+
+pub trait AbiTableView {
     fn name_str(&self) -> String;
     fn type_str(&self) -> String;
+
+    fn key_names(&self) -> Vec<String>;
+
+    fn key_types(&self) -> Option<Vec<String>>;
+
+    fn index_type(&self) -> Option<String>;
 }
 
 pub trait ABIView {
     fn types(&self) -> &[AbiTypeDef];
     fn structs(&self) -> &[AbiStruct];
     fn variants(&self) -> &[AbiVariant];
-    fn tables(&self) -> &[impl HasNameAndType]; // generic over ABI and ShipABI table
+    fn tables(&self) -> &[impl AbiTableView]; // generic over ABI and ShipABI table
+
+    fn actions(&self) -> &[AbiAction];
+
+    fn resolve_alias(&self, type_name: &str) -> Option<String> {
+        self.types().iter().find_map(|t| {
+            if t.new_type_name == type_name {
+                Some(t.r#type.clone())
+            } else {
+                None
+            }
+        })
+    }
 }
 
 impl<ABI: ABIView> ABITypeResolver for ABI {
-    fn resolve_type(&self, type_name: &str) -> Option<(ABIResolvedType, String)> {
-        if STD_TYPES.contains(&type_name) {
-            return Some((ABIResolvedType::Standard(type_name.to_string()), type_name.to_string()));
-        }
+    fn resolve_type(&self, type_name: &str) -> Result<ABIResolvedType, ABIResolveError> {
+        let original = type_name.to_string();
+        let (mut base, mut modifiers) = split_type_modifiers(&original)?;
 
-        let mut _type = type_name.to_string();
+        let mut is_alias = false;
+        let mut visited_aliases = std::collections::HashSet::new();
 
-        // Handle modifiers
-        if _type.ends_with("?") {
-            _type.pop();
-            let (resolved, _) = self.resolve_type(&_type)?;
-            return Some((ABIResolvedType::Optional(Box::new(resolved)), _type));
-        }
-        if _type.ends_with("[]") {
-            _type.truncate(_type.len().saturating_sub(2));
-            let (resolved, _) = self.resolve_type(&_type)?;
-            return Some((ABIResolvedType::Array(Box::new(resolved)), _type));
-        }
-        if _type.ends_with("$") {
-            _type.pop();
-            let (resolved, _) = self.resolve_type(&_type)?;
-            return Some((ABIResolvedType::Extension(Box::new(resolved)), _type));
-        }
-
-        if let Some(type_meta) = self.types().iter().find(|t| t.new_type_name == type_name) {
-            _type = type_meta.r#type.clone();
-        }
-
-        if let Some(var_meta) = self.variants().iter().find(|v| v.name == _type) {
-            return Some((ABIResolvedType::Variant(var_meta.clone()), _type));
-        }
-
-        if let Some(table) = self.tables().iter().find(|t| t.name_str() == _type) {
-            return self.resolve_type(&table.type_str());
-        }
-
-        if let Some(struct_meta) = self.structs().iter().find(|s| s.name == _type) {
-            let mut expanded_struct = struct_meta.clone();
-            if !struct_meta.base.is_empty() {
-                if let Some((base_meta, _)) = self.resolve_type(struct_meta.base.as_str()) {
-                    if let ABIResolvedType::Struct(base_struct) = base_meta {
-                        for field in base_struct.fields.iter().rev() {
-                            expanded_struct.fields.insert(0, field.clone());
-                        }
-                    }
-                }
+        // resolve aliases
+        while let Some(target) = self.resolve_alias(&base) {
+            if !visited_aliases.insert(base.clone()) {
+                return Err(ABIResolveError::fmt(format_args!(
+                    "Circular alias detected: {:?} -> {}", visited_aliases, base
+                )));
             }
-            return Some((ABIResolvedType::Struct(expanded_struct), _type));
+            is_alias = true;
+            let (next_base, next_mods) = split_type_modifiers(&target)?;
+            modifiers.extend(next_mods);
+            base = next_base;
         }
 
-        None
+        // resolve type meta flags
+        let is_std     = BUILTIN_TYPES.contains(base.as_str());
+        let is_struct  = self.structs().iter().any(|s| s.name == base);
+        let is_variant = self.variants().iter().any(|v| v.name == base);
+
+        if !(is_std || is_struct || is_variant) {
+            return Err(ABIResolveError::fmt(format_args!(
+                "Unknown type “{}” after alias resolution", base)));
+        }
+
+        Ok(ABIResolvedType {
+            original_name: original,
+            resolved_name: base,
+            is_std,
+            is_alias,
+            is_struct,
+            is_variant,
+            modifiers,
+        })
     }
 }
 
@@ -327,26 +402,52 @@ impl ShipABI {
     }
 }
 
-impl HasNameAndType for AbiTable {
+impl AbiTableView for AbiTable {
     fn name_str(&self) -> String { self.name.to_string() }
     fn type_str(&self) -> String { self.r#type.clone() }
+
+    fn key_names(&self) -> Vec<String> {
+        self.key_names.iter().map(|k| k.clone()).collect()
+    }
+
+    fn key_types(&self) -> Option<Vec<String>> {
+        Some(self.key_types.iter().map(|k| k.clone()).collect())
+    }
+
+    fn index_type(&self) -> Option<String> {
+        Some(self.index_type.clone())
+    }
 }
 
-impl HasNameAndType for ShipAbiTable {
+impl AbiTableView for ShipAbiTable {
     fn name_str(&self) -> String { self.name.clone() }
     fn type_str(&self) -> String { self.r#type.clone() }
+
+    fn key_names(&self) -> Vec<String> {
+        self.key_names.iter().map(|k| k.clone()).collect()
+    }
+
+    fn key_types(&self) -> Option<Vec<String>> {
+        None
+    }
+
+    fn index_type(&self) -> Option<String> {
+        None
+    }
 }
 
 impl ABIView for ABI {
     fn types(&self) -> &[AbiTypeDef] { &self.types }
     fn structs(&self) -> &[AbiStruct] { &self.structs }
     fn variants(&self) -> &[AbiVariant] { &self.variants }
-    fn tables(&self) -> &[impl HasNameAndType] { &self.tables }
+    fn tables(&self) -> &[impl AbiTableView] { &self.tables }
+    fn actions(&self) -> &[AbiAction] { &self.actions }
 }
 
 impl ABIView for ShipABI {
     fn types(&self) -> &[AbiTypeDef] { &self.types }
     fn structs(&self) -> &[AbiStruct] { &self.structs }
     fn variants(&self) -> &[AbiVariant] { &self.variants }
-    fn tables(&self) -> &[impl HasNameAndType] { &self.tables }
+    fn tables(&self) -> &[impl AbiTableView] { &self.tables }
+    fn actions(&self) -> &[AbiAction] { &[] }
 }

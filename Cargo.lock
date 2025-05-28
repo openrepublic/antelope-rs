@@ -47,6 +47,7 @@ dependencies = [
  "hex",
  "k256",
  "log",
+ "once_cell",
  "p256",
  "rand",
  "reqwest",
