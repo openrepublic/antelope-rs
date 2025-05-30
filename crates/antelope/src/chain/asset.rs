@@ -46,10 +46,10 @@ pub struct SymbolCode {
     value: u64,
 }
 
-impl Into<u64> for SymbolCode {
+impl From<SymbolCode> for u64 {
     #[inline]
-    fn into(self) -> u64 {
-        self.value
+    fn from(val: SymbolCode) -> Self {
+        val.value
     }
 }
 
@@ -169,10 +169,10 @@ impl From<u64> for Symbol {
     }
 }
 
-impl Into<u64> for Symbol {
+impl From<Symbol> for u64 {
     #[inline]
-    fn into(self) -> u64 {
-        self.value
+    fn from(val: Symbol) -> Self {
+        val.value
     }
 }
 
@@ -298,11 +298,10 @@ impl Asset {
         if amount < -MAX_AMOUNT {
             return Err(AssetOpError::new(format!("addition underflow: {} + {} < {}", self.amount, amount, -MAX_AMOUNT)));
         }
-        Ok(Asset::try_from((amount, self.symbol))
+        Asset::try_from((amount, self.symbol))
             .map_err(
-                |e| AssetOpError::new(format!("AssetTryFromError: {}", e.to_string()))
-            )?
-        )
+                |e| AssetOpError::new(format!("AssetTryFromError: {}", e))
+            )
     }
 
     pub fn try_sub(&self, other: Asset) -> Result<Asset, AssetOpError> {
@@ -316,11 +315,10 @@ impl Asset {
         if amount < -MAX_AMOUNT {
             return Err(AssetOpError::new(format!("subtraction underflow: {} - {} < {}", self.amount, amount, -MAX_AMOUNT)));
         }
-        Ok(Asset::try_from((amount, self.symbol))
+        Asset::try_from((amount, self.symbol))
             .map_err(
-                |e| AssetOpError::new(format!("AssetTryFromError: {}", e.to_string()))
-            )?
-        )
+                |e| AssetOpError::new(format!("AssetTryFromError: {}", e))
+            )
     }
 }
 
@@ -507,7 +505,7 @@ where
         where
             E: de::Error,
         {
-            Ok(Asset::from_str(value).map_err(|e| E::custom(e.to_string()))?)
+            Asset::from_str(value).map_err(|e| E::custom(e))
         }
     }
 
