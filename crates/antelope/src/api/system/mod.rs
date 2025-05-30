@@ -16,6 +16,24 @@ use crate::serializer::Encoder;
 use sha2::{Digest, Sha256};
 use std::path::Path;
 use tracing::info;
+use serde_json::Error as SerdeError;
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum SystemAPIError {
+    #[error("Client error: {0:?}")]
+    Client(ClientError<SendTransactionResponseError>),
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+    #[error(transparent)]
+    Json(#[from] SerdeError),
+}
+
+impl From<ClientError<SendTransactionResponseError>> for SystemAPIError {
+    fn from(err: ClientError<SendTransactionResponseError>) -> Self {
+        SystemAPIError::Client(err)
+    }
+}
 
 #[derive(Debug, Default, Clone)]
 pub struct SystemAPI<T: Provider> {
@@ -31,7 +49,7 @@ impl<T: Provider> SystemAPI<T> {
         &self,
         create_params: CreateAccountParams,
         creator_private_key: PrivateKey,
-    ) -> Result<SendTransactionResponse, ClientError<SendTransactionResponseError>> {
+    ) -> Result<SendTransactionResponse, SystemAPIError> {
         let CreateAccountParams {
             name,
             creator,
@@ -76,7 +94,10 @@ impl<T: Provider> SystemAPI<T> {
             },
         );
         let actions = vec![new_account_action, buy_ram_action, delegate_bw_action];
-        self.api_client.transact(actions, creator_private_key).await
+        Ok(self
+            .api_client
+            .transact(actions, creator_private_key)
+            .await?)
     }
 
     pub async fn transfer(
@@ -84,8 +105,8 @@ impl<T: Provider> SystemAPI<T> {
         transfer_action: TransferAction,
         sender_private_key: PrivateKey,
         token_contract: Option<Name>,
-    ) -> Result<SendTransactionResponse, ClientError<SendTransactionResponseError>> {
-        self.api_client
+    ) -> Result<SendTransactionResponse, SystemAPIError> {
+        Ok(self.api_client
             .transact(
                 vec![Action::new(
                     token_contract.unwrap_or(name!("eosio.token")),
@@ -95,7 +116,7 @@ impl<T: Provider> SystemAPI<T> {
                 )],
                 sender_private_key,
             )
-            .await
+            .await?)
     }
 
     pub async fn set_contract_from_files(
@@ -105,10 +126,10 @@ impl<T: Provider> SystemAPI<T> {
         abi_path: &str,
         memo: Option<String>,
         private_key: PrivateKey,
-    ) -> Result<SendTransactionResponse, ClientError<SendTransactionResponseError>> {
-        let wasm = std::fs::read(Path::new(wasm_path)).unwrap();
-        let abi_json_bytes = std::fs::read(Path::new(abi_path)).unwrap();
-        let abi: ABI = serde_json::from_slice(&abi_json_bytes).unwrap();
+    ) -> Result<SendTransactionResponse, SystemAPIError> {
+        let wasm = std::fs::read(Path::new(wasm_path))?;
+        let abi_json_bytes = std::fs::read(Path::new(abi_path))?;
+        let abi: ABI = serde_json::from_slice(&abi_json_bytes)?;
         let abi_bytes = Encoder::pack(&abi);
         self.set_contract(account, wasm, abi_bytes, memo, private_key)
             .await
@@ -121,7 +142,7 @@ impl<T: Provider> SystemAPI<T> {
         abi: Vec<u8>,
         memo: Option<String>,
         private_key: PrivateKey,
-    ) -> Result<SendTransactionResponse, ClientError<SendTransactionResponseError>> {
+    ) -> Result<SendTransactionResponse, SystemAPIError> {
         let mut hasher = Sha256::new();
         hasher.update(&wasm);
         let wasm_hash = hasher.finalize();
@@ -130,7 +151,7 @@ impl<T: Provider> SystemAPI<T> {
             account.as_string(),
             wasm_hash
         );
-        self.api_client
+        Ok(self.api_client
             .transact(
                 vec![
                     Action::new(
@@ -158,6 +179,6 @@ impl<T: Provider> SystemAPI<T> {
                 ],
                 private_key,
             )
-            .await
+            .await?)
     }
 }
