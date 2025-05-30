@@ -1,17 +1,16 @@
-use std::collections::HashSet;
 use std::string::ToString;
 use std::fmt;
 use crate::serializer::{Decoder, Encoder, Packer, PackerError};
 use antelope_client_macros::StructPacker;
 use serde::{Deserialize, Serialize};
-use once_cell::unsync::Lazy;
 use crate::{chain::name::{
     serialize_name,
     deserialize_name,
     Name
 }, define_error};
+use phf::phf_set;
 
-pub const BUILTIN_TYPES: Lazy<HashSet<&str>> = Lazy::new(|| HashSet::from([
+static BUILTIN_TYPES: phf::Set<&'static str> = phf_set! {
     "bool",
 
     "uint8",
@@ -54,7 +53,7 @@ pub const BUILTIN_TYPES: Lazy<HashSet<&str>> = Lazy::new(|| HashSet::from([
 
     "asset",
     "extended_asset"
-]));
+};
 
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -123,7 +122,7 @@ fn split_type_modifiers(mut name: &str) -> Result<(String, Vec<TypeModifier>), A
             continue;
         }
         // detect forbidden fixed-size arrays
-        if name.ends_with(']') && name.rfind('[').map_or(false, |lb| name[lb+1..name.len()-1].chars().all(char::is_numeric))
+        if name.ends_with(']') && name.rfind('[').is_some_and(|lb| name[lb+1..name.len()-1].chars().all(char::is_numeric))
         {
             return Err(ABIResolveError::fmt(format_args!(
                 "Fixed-size arrays like “{}” are not supported", name)));
@@ -407,11 +406,11 @@ impl AbiTableView for AbiTable {
     fn type_str(&self) -> String { self.r#type.clone() }
 
     fn key_names(&self) -> Vec<String> {
-        self.key_names.iter().map(|k| k.clone()).collect()
+        self.key_names.to_vec()
     }
 
     fn key_types(&self) -> Option<Vec<String>> {
-        Some(self.key_types.iter().map(|k| k.clone()).collect())
+        Some(self.key_types.to_vec())
     }
 
     fn index_type(&self) -> Option<String> {
@@ -424,7 +423,7 @@ impl AbiTableView for ShipAbiTable {
     fn type_str(&self) -> String { self.r#type.clone() }
 
     fn key_names(&self) -> Vec<String> {
-        self.key_names.iter().map(|k| k.clone()).collect()
+        self.key_names.to_vec()
     }
 
     fn key_types(&self) -> Option<Vec<String>> {
