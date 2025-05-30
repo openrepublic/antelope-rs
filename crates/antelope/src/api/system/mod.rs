@@ -5,7 +5,7 @@ use crate::api::system::structs::{
     CreateAccountParams, DelegateBandwidthAction, NewAccountAction, SetAbiAction, SetCodeAction,
     TransferAction,
 };
-use crate::api::v1::structs::{ClientError, SendTransactionResponse, SendTransactionResponseError};
+use crate::api::v1::structs::SendTransactionResponse;
 use crate::chain::abi::ABI;
 use crate::chain::action::{Action, PermissionLevel};
 use crate::chain::binary_extension::BinaryExtension;
@@ -19,19 +19,21 @@ use tracing::info;
 use serde_json::Error as SerdeError;
 use thiserror::Error;
 
+use super::v1::structs::ChainAPIError;
+
 #[derive(Error, Debug)]
 pub enum SystemAPIError {
     #[error("Client error: {0:?}")]
-    Client(ClientError<SendTransactionResponseError>),
+    Chain(ChainAPIError),
     #[error(transparent)]
     Io(#[from] std::io::Error),
     #[error(transparent)]
     Json(#[from] SerdeError),
 }
 
-impl From<ClientError<SendTransactionResponseError>> for SystemAPIError {
-    fn from(err: ClientError<SendTransactionResponseError>) -> Self {
-        SystemAPIError::Client(err)
+impl From<ChainAPIError> for SystemAPIError {
+    fn from(err: ChainAPIError) -> Self {
+        SystemAPIError::Chain(err)
     }
 }
 
@@ -94,10 +96,11 @@ impl<T: Provider> SystemAPI<T> {
             },
         );
         let actions = vec![new_account_action, buy_ram_action, delegate_bw_action];
-        Ok(self
+        self
             .api_client
             .transact(actions, creator_private_key)
-            .await?)
+            .await
+            .map_err(|e| e.into())
     }
 
     pub async fn transfer(

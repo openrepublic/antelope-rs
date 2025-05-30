@@ -1,11 +1,11 @@
 use std::str::FromStr;
-use antelope::api::v1::structs::{ErrorResponse, SendTransactionResponse, TransactionState};
+use antelope::api::v1::structs::{ChainAPIError, ErrorResponse, SendTransactionResponse, TransactionState};
 use antelope::chain::block_id::BlockId;
 use antelope::chain::time::TimePoint;
 use antelope::{
     api::{
         client::APIClient,
-        v1::structs::{ClientError, GetTableRowsParams},
+        v1::structs::GetTableRowsParams,
     },
     chain::{asset::Asset, checksum::Checksum256, name::Name},
     name,
@@ -107,20 +107,26 @@ async fn chain_send_transaction() {
         make_mock_transaction(&info, Asset::from_str("0.0420 NUNYA").unwrap());
     let signed_invalid_transaction =
         sign_mock_transaction(&invalid_transaction, &info);
+
     let failed_result = client
         .v1_chain
         .send_transaction(signed_invalid_transaction)
         .await;
+
     assert!(
         failed_result.is_err(),
         "Failed transaction result should be err"
     );
-    let failure_response = failed_result.err().unwrap();
+
+    let failure_response = failed_result.unwrap_err();
 
     match failure_response {
-        ClientError::SERVER(err) => assert_eq!(err.error.code, Some(3050003)),
-        _ => panic!("Failure response should be of type ClientError::SERVER"),
+        ChainAPIError::Nodeos{code, ..} => {
+            assert_eq!(code, 3050003);
+        }
+        _ => panic!("Failure response should be a server error"),
     }
+
 }
 
 #[tokio::test]

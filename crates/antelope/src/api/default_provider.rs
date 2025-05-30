@@ -3,6 +3,8 @@ use reqwest::Client;
 use std::fmt::{Debug, Formatter};
 use tracing::debug;
 
+use super::client::ProviderError;
+
 #[derive(Default, Clone)]
 pub struct DefaultProvider {
     base_url: String,
@@ -35,27 +37,24 @@ impl Debug for DefaultProvider {
 
 #[async_trait::async_trait]
 impl Provider for DefaultProvider {
-    async fn get(&self, path: String) -> Result<String, String> {
+    async fn get(&self, path: String) -> Result<String, ProviderError> {
         debug!("GET {}", self.base_url.to_string() + &path);
         let res = self
             .client
             .get(self.base_url.to_string() + &path)
             .send()
             .await
-            .map_err(|e| {
-                debug!("Error: {}", e);
-                e.to_string()
-            })?;
+            .map_err(|e| ProviderError::from(e.to_string()))?;
 
         let response = res.text()
             .await
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| ProviderError::from(e.to_string()))?;
 
         debug!("Response: {}", response);
         Ok(response)
     }
 
-    async fn post(&self, path: String, body: Option<String>) -> Result<String, String> {
+    async fn post(&self, path: String, body: Option<String>) -> Result<String, ProviderError> {
         let mut builder = self.client.post(self.base_url.to_string() + &path);
         if let Some(body_str) = body {
             debug!("POST {} {}", self.base_url.to_string() + &path, body_str);
@@ -63,14 +62,11 @@ impl Provider for DefaultProvider {
         }
         let res = builder.send()
             .await
-            .map_err(|e| {
-                debug!("Error: {}", e);
-                e.to_string()
-            })?;
+            .map_err(|e| ProviderError::from(e.to_string()))?;
 
         let response = res.text()
             .await
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| ProviderError::from(e.to_string()))?;
 
         debug!("Response: {}", response);
         Ok(response)

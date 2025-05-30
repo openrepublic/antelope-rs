@@ -6,6 +6,7 @@ use serde_json::{json, Value};
 use std::fmt;
 use std::mem::discriminant;
 
+use crate::api::client::ProviderError;
 use crate::chain::abi::ABI;
 use crate::chain::public_key::PublicKey;
 use crate::chain::signature::Signature;
@@ -23,82 +24,61 @@ use crate::chain::{
     varint::VarUint32,
 };
 use tracing::info;
+use serde_json::Error as JsonError;
+use thiserror::Error;
 
-#[derive(Debug)]
-pub enum ClientError<T> {
-    SIMPLE(SimpleError),
-    SERVER(ServerError<T>),
-    HTTP(HTTPError),
-    ENCODING(EncodingError),
-    NETWORK(String),
+#[derive(Debug, Deserialize)]
+pub struct NodeosErrorEnvelope {
+    pub error: NodeosError,
 }
 
-impl<T> ClientError<T> {
-    pub fn simple(message: String) -> Self {
-        ClientError::SIMPLE(SimpleError { message })
-    }
-
-    pub fn encoding(message: String) -> Self {
-        ClientError::ENCODING(EncodingError { message })
-    }
-
-    pub fn server(error: T) -> Self {
-        ClientError::SERVER(ServerError { error })
-    }
+#[derive(Debug, Deserialize)]
+pub struct NodeosError {
+    pub code:    u32,
+    pub name:    String,
+    pub what:    String,
+    pub details: Option<Vec<NodeosErrorDetail>>,
 }
 
-impl<T> From<EncodingError> for ClientError<T> {
-    fn from(value: EncodingError) -> Self {
-        ClientError::ENCODING(value)
-    }
-}
-
-impl<T> From<String> for ClientError<T> {
-    fn from(value: String) -> Self {
-        ClientError::simple(value)
-    }
-}
-
-#[derive(Debug)]
-pub struct SimpleError {
+#[derive(Debug, Deserialize)]
+pub struct NodeosErrorDetail {
     pub message: String,
 }
 
-#[derive(Debug)]
-pub struct ServerError<T> {
-    pub error: T,
+#[derive(Debug, Error)]
+pub enum ChainAPIError {
+    #[error(transparent)]
+    Network(#[from] ProviderError),
+
+    /// Non-2xx HTTP status returned by nodeos.
+    #[error("HTTP {status}: {body}")]
+    Http {
+        status: u16,
+        body:   String,
+    },
+
+    /// `nodeos` sent a structured error response (eosio style).
+    #[error("nodeos error {code}: {name} – {what}")]
+    Nodeos {
+        code:    u32,
+        name:    String,
+        what:    String,
+        details: Option<String>,
+    },
+
+    // local processing
+    #[error(transparent)]
+    Json(#[from] JsonError),
+
+    #[error("binary pack/unpack error: {0}")]
+    Pack(String),
+
+    #[error("parse error: {0}")]
+    Parse(String),
 }
 
-#[derive(Debug)]
-pub struct HTTPError {
-    pub code: u16,
-    pub message: String,
-}
-
-#[derive(Debug)]
-pub struct EncodingError {
-    pub message: String,
-}
-
-impl EncodingError {
-    pub fn new(message: String) -> Self {
-        EncodingError { message }
-    }
-}
-
-// pub trait ClientError {
-//     fn get_message(&self) -> &str;
-// }
-//
-// pub struct SimpleError {
-//     pub message: str,
-// }
-//
-// impl ClientError for SimpleError {
-//     fn get_message(&self) -> String {
-//         self.message.to_string()
-//     }
-// }
+/// Convenient local alias
+pub type ChainResult<T> = std::result::Result<T, ChainAPIError>;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GetInfoResponse {
@@ -189,7 +169,7 @@ pub struct ProcessedTransaction2 {
     pub error_code: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SendTransactionResponseExceptionStackContext {
     pub level: String,
     pub file: String,
@@ -207,7 +187,7 @@ pub struct SendTransactionResponseExceptionStack {
     pub data: String, // TODO: create a type for this?
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SendTransactionResponse2ExceptionStack {
     pub context: SendTransactionResponseExceptionStackContext,
     pub format: String,
@@ -234,7 +214,7 @@ pub struct SendTransactionResponseError {
     pub details: Vec<SendTransactionResponseErrorDetails>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SendTransactionResponse2Error {
     pub code: Option<u32>,
     pub name: String,
@@ -279,7 +259,7 @@ impl SendTransactionResponseError {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SendTransactionResponseErrorDetails {
     pub message: String,
     pub file: String,

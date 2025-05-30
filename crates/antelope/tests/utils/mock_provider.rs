@@ -6,19 +6,16 @@ use std::{
 
 use antelope::{
     api::{
-        client::{HTTPMethod, Provider},
+        client::{HTTPMethod, Provider, ProviderError},
         v1::structs::GetInfoResponse,
-    },
-    chain::{
+    }, chain::{
         action::{Action, PermissionLevel},
         asset::Asset,
         checksum::Checksum160,
         name::Name,
         private_key::PrivateKey,
         transaction::{SignedTransaction, Transaction},
-    },
-    serializer::{Decoder, Encoder, Packer, PackerError},
-    name,
+    }, name, serializer::{Decoder, Encoder, Packer, PackerError}
 };
 use antelope_client_macros::StructPacker;
 
@@ -31,7 +28,7 @@ impl MockProvider {
         method: HTTPMethod,
         path: String,
         body: Option<String>,
-    ) -> Result<String, String> {
+    ) -> Result<String, ProviderError> {
         let mut to_hash = method.to_string() + &path;
 
         if let Some(body) = body {
@@ -55,11 +52,11 @@ impl Debug for MockProvider {
 
 #[async_trait::async_trait]
 impl Provider for MockProvider {
-    async fn post(&self, path: String, body: Option<String>) -> Result<String, String> {
+    async fn post(&self, path: String, body: Option<String>) -> Result<String, ProviderError> {
         self.call(HTTPMethod::POST, path, body)
     }
 
-    async fn get(&self, path: String) -> Result<String, String> {
+    async fn get(&self, path: String) -> Result<String, ProviderError> {
         self.call(HTTPMethod::GET, path, None)
     }
 }
