@@ -4,7 +4,7 @@ use serde::de::{SeqAccess};
 use serde::de::Error as SerdeDeError;
 use serde::ser::Error as SerdeSerError;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use crate::{check_unpack_len, define_error};
+use crate::{check_unpack_len, define_error, packer_error};
 use crate::serializer::{Encoder, Packer, PackerError};
 
 define_error!(NameParsingError);
@@ -232,7 +232,11 @@ impl Packer for Name {
 
     fn unpack(&mut self, raw: &[u8]) -> Result<usize, PackerError> {
         check_unpack_len!(self, raw, 8);
-        self.n = u64::from_le_bytes(raw[0..8].try_into().unwrap());
+        self.n = u64::from_le_bytes(
+            raw[0..8]
+                .try_into()
+                .map_err(|e| packer_error!("TryInto [u8; 8] failed: {}", e))?
+        );
         Ok(8)
     }
 }
@@ -266,7 +270,7 @@ where
         where
             E: serde::de::Error,
         {
-            Ok(Name::try_from(v).map_err(|e| E::custom(e.to_string()))?)
+            Name::try_from(v).map_err(|e| E::custom(e.to_string()))
         }
     }
 
@@ -281,7 +285,7 @@ where
     let result = match opt {
         Some(name_str) => Some(
             Name::try_from(name_str.as_str())
-                .map_err(|e| D::Error::custom(e))?
+                .map_err(D::Error::custom)?
         ),
         None => None
     };
@@ -327,7 +331,7 @@ where
 {
     serializer.serialize_str(
         &name.as_string()
-            .map_err(|e| S::Error::custom(e))?
+            .map_err(S::Error::custom)?
     )
 }
 
@@ -342,7 +346,7 @@ where
     match name {
         Some(n) => serializer.serialize_some(
             &n.as_string()
-                .map_err(|e| S::Error::custom(e))?
+                .map_err(S::Error::custom)?
         ),
         None => serializer.serialize_none(),
     }
@@ -361,7 +365,7 @@ where
     for name in names {
         strings.push(
             name.as_string()
-                .map_err(|e| S::Error::custom(e))?
+                .map_err(S::Error::custom)?
         );
     }
     serializer.collect_seq(strings)
