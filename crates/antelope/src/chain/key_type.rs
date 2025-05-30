@@ -1,7 +1,7 @@
 use std::fmt::{Display, Formatter};
 
 use serde::{Deserialize, Serialize};
-use crate::check_unpack_len;
+use crate::{check_unpack_len, packer_error};
 use crate::serializer::{
     PackerError,
     Encoder,
@@ -98,7 +98,8 @@ impl Packer for KeyType {
 
     fn unpack(&mut self, data: &[u8]) -> Result<usize, PackerError> {
         check_unpack_len!(self, data, 1);
-        *self = KeyType::from_index(data[0]).unwrap();
+        *self = KeyType::from_index(data[0])
+            .map_err(|e| packer_error!("KeyType::from_index failed: {}", e))?;
         Ok(1)
     }
 }

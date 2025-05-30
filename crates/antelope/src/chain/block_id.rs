@@ -60,7 +60,7 @@ where
     D: Deserializer<'de>,
 {
     struct HexVisitor;
-    impl<'de> Visitor<'de> for HexVisitor {
+    impl Visitor<'_> for HexVisitor {
         type Value = BlockId;
 
         fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {

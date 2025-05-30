@@ -39,8 +39,8 @@ impl Checksum160 {
     pub fn hash(bytes: Vec<u8>) -> Self {
         let mut hasher = Ripemd160::new();
         hasher.update(bytes);
-        let ripe_hash = hasher.finalize();
-        Checksum160::from_bytes(ripe_hash.as_slice()).unwrap()
+        let result = hasher.finalize();
+        Self { data: result.into() }
     }
 
     pub fn as_string(&self) -> String {
@@ -129,7 +129,10 @@ impl Checksum256 {
     }
 
     pub fn hash(bytes: Vec<u8>) -> Self {
-        Checksum256::from_bytes(Sha256::digest(bytes).as_slice()).unwrap()
+        let mut hasher = Sha256::new();
+        hasher.update(bytes);
+        let result = hasher.finalize();
+        Self { data: result.into() }
     }
 
     pub fn as_string(&self) -> String {
