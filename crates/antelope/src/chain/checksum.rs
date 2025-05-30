@@ -9,9 +9,10 @@ use sha2::{Sha256, Sha512};
 
 use crate::{
     check_unpack_len,
-    util::{bytes_to_hex, hex_to_bytes, slice_copy}
+    util::{bytes_to_hex, slice_copy}
 };
 use crate::serializer::{Encoder, Packer, PackerError};
+use hex::decode;
 
 #[derive(Clone, Copy, Eq, PartialEq, Default, Serialize, Deserialize, Debug)]
 pub struct Checksum160 {
@@ -23,7 +24,8 @@ impl Checksum160 {
         if s.len() != 40 {
             return Err(String::from("Checksum160: bad hex string length"));
         }
-        let data = hex_to_bytes(s);
+        let data = decode(s)
+            .map_err(|e| e.to_string())?;
         Self::from_bytes(data.as_slice())
     }
 
@@ -115,7 +117,8 @@ impl Checksum256 {
         if s.len() != 64 {
             return Err(String::from("Checksum256: bad hex string length"));
         }
-        let data = hex_to_bytes(s);
+        let data = decode(s)
+            .map_err(|e| e.to_string())?;
         Self::from_bytes(data.as_slice())
     }
 
@@ -190,7 +193,8 @@ impl Checksum512 {
         if s.len() != 128 {
             return Err(String::from("Checksum512: bad hex string length"));
         }
-        let data = hex_to_bytes(s);
+        let data = decode(s)
+            .map_err(|e| e.to_string())?;
         Ok(Self::from_bytes(data.as_slice()))
     }
 

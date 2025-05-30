@@ -1,11 +1,7 @@
 use std::io::Write;
 
 use flate2::{write::ZlibEncoder, Compression};
-use hex::{decode, encode};
-
-pub fn hex_to_bytes(hex: &str) -> Vec<u8> {
-    decode(hex).unwrap()
-}
+use hex::encode;
 
 pub fn bytes_to_hex(bytes: &Vec<u8>) -> String {
     encode(bytes)
@@ -35,7 +31,7 @@ pub fn zlib_compress(bytes: &[u8]) -> Result<Vec<u8>, String> {
     if compressed_bytes.is_err() {
         return Err("Error during compression".into());
     }
-    Ok(compressed_bytes.unwrap())
+    compressed_bytes.map_err(|e| e.to_string())
 }
 
 #[macro_export]

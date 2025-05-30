@@ -14,10 +14,13 @@ use antelope::{
         transaction::{Transaction, TransactionHeader},
     },
     name,
-    util::{bytes_to_hex, hex_to_bytes},
+    util::bytes_to_hex,
 };
 use antelope::serializer::{Decoder, Encoder, Packer, PackerError};
 use antelope_client_macros::StructPacker;
+
+mod utils;
+use utils::hex_to_bytes;
 
 #[test]
 fn asset() {

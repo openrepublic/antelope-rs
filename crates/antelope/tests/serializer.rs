@@ -7,14 +7,16 @@ use antelope::{
     chain::{name::Name, signature::Signature},
     name,
     serializer::{Encoder, Decoder, Packer, PackerError},
-    util,
-    util::{bytes_to_hex, hex_to_bytes},
+    util::bytes_to_hex,
 };
 use antelope_client_macros::{EnumPacker, StructPacker};
 use digest::Digest;
 use sha2::Sha256;
 
 mod test_bytes;
+
+mod utils;
+use utils::hex_to_bytes;
 
 const TEST_ABI: &str = include_str!("typestresser.abi.json");
 
@@ -255,7 +257,7 @@ fn string() {
     //let decoded =
     // Serializer::decode(serializable_to_encode_args(Box::new(object)));
 
-    assert_eq!(encoded, util::hex_to_bytes(data));
+    assert_eq!(encoded, hex_to_bytes(data));
 
     /*
     test('string', function () {

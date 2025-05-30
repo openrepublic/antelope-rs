@@ -1,8 +1,9 @@
 use crate::utils::ship_types::{ActionTrace, TransactionTrace};
 use antelope::serializer::Packer;
-use antelope::util::{bytes_to_hex, hex_to_bytes};
+use antelope::util::bytes_to_hex;
 
 mod utils;
+use utils::hex_to_bytes;
 
 // TODO: This is for testing a non-utf8 string, https://github.com/telosnetwork/antelope-rs/issues/42
 #[ignore]

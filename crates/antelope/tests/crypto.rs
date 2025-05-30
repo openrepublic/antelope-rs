@@ -3,8 +3,10 @@ use antelope::serializer::{Decoder, Encoder};
 use antelope::util::bytes_to_hex;
 use antelope::{
     chain::{key_type::KeyType, private_key::PrivateKey, public_key::PublicKey},
-    util::hex_to_bytes,
 };
+
+mod utils;
+use utils::hex_to_bytes;
 
 #[test]
 fn private_key_encoding() {

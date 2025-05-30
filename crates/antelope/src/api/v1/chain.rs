@@ -24,8 +24,8 @@ use crate::{
     },
     name,
     serializer::{Decoder, Packer},
-    util::hex_to_bytes,
 };
+use hex::decode;
 
 use super::structs::{ChainAPIError, ChainResult, NodeosErrorDetail, NodeosErrorEnvelope};
 
@@ -249,7 +249,8 @@ impl<T: Provider> ChainAPI<T> {
             let row_hex = encoded
                 .as_str()
                 .ok_or_else(|| ChainAPIError::Parse("row not string".into()))?;
-            let row_bytes = hex_to_bytes(row_hex);
+            let row_bytes = decode(row_hex)
+                .map_err(|e| ChainAPIError::Parse(e.to_string()))?;
             let mut decoder = Decoder::new(&row_bytes);
             let mut row = P::default();
             decoder
@@ -277,7 +278,9 @@ impl<T: Provider> ChainAPI<T> {
                 Some(TableIndexType::CHECKSUM160(_)) => Some(
                     TableIndexType::CHECKSUM160(
                         Checksum160::from_bytes(
-                            hex_to_bytes(&next_key_str).as_slice(),
+                            decode(&next_key_str)
+                                .map_err(|e| ChainAPIError::Parse(e.to_string()))?
+                                .as_slice(),
                         )
                         .map_err(|e| ChainAPIError::Parse(format!("bad checksum160: {}", e)))?,
                     ),
@@ -285,7 +288,9 @@ impl<T: Provider> ChainAPI<T> {
                 Some(TableIndexType::CHECKSUM256(_)) => Some(
                     TableIndexType::CHECKSUM256(
                         Checksum256::from_bytes(
-                            hex_to_bytes(&next_key_str).as_slice(),
+                            decode(&next_key_str)
+                                .map_err(|e| ChainAPIError::Parse(e.to_string()))?
+                                .as_slice(),
                         )
                         .map_err(|e| ChainAPIError::Parse(format!("bad checksum256: {}", e)))?,
                     ),
