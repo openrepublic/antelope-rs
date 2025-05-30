@@ -483,7 +483,6 @@ impl GetTableRowsParams {
 
         let scope = self.scope.unwrap_or(self.code);
         req.insert("scope", Value::String(scope.to_string()));
-
         req.insert("json", Value::Bool(false));
 
         if let Some(limit) = &self.limit {
@@ -494,29 +493,32 @@ impl GetTableRowsParams {
             req.insert("reverse", Value::Bool(*reverse));
         }
 
-        if self.lower_bound.is_some() || self.upper_bound.is_some() {
-            if self.upper_bound.is_none() {
-                let lower = self.lower_bound.as_ref().unwrap();
+        match (&self.lower_bound, &self.upper_bound) {
+            (Some(lower), None) => {
                 req.insert("key_type", lower.get_key_type());
                 req.insert("lower_bound", lower.to_json());
-            } else if self.lower_bound.is_none() {
-                let upper = self.upper_bound.as_ref().unwrap();
+            }
+            (None, Some(upper)) => {
                 req.insert("key_type", upper.get_key_type());
                 req.insert("upper_bound", upper.to_json());
-            } else {
-                let lower = self.lower_bound.as_ref().unwrap();
-                let upper = self.upper_bound.as_ref().unwrap();
-                if discriminant(lower) != discriminant(upper) {
-                    panic!("lower_bound and upper_bound must be of the same type");
-                }
+            }
+            (Some(lower), Some(upper)) => {
+                debug_assert_eq!(
+                    discriminant(lower), discriminant(upper),
+                    "lower_bound and upper_bound must be of the same type"
+                );
                 req.insert("key_type", lower.get_key_type());
                 req.insert("lower_bound", lower.to_json());
                 req.insert("upper_bound", upper.to_json());
             }
+            _ => {}
+        }
 
-            if let Some(index_position) = &self.index_position {
-                req.insert("index_position", index_position.to_json());
-            }
+        if let Some(position) = &self.index_position {
+            req.insert(
+                "index_position",
+                position.to_json(),
+            );
         }
 
         json!(req).to_string()
