@@ -24,7 +24,10 @@ pub async fn transact<T: Provider>(
 
     let signed = SignedTransaction {
         transaction: trx,
-        signatures: vec![private_key.sign_message(&sign_data)],
+        signatures: vec![
+            private_key.sign_message(&sign_data)
+                .map_err(ChainAPIError::Signing)?
+        ],
         context_free_data: vec![],
     };
 

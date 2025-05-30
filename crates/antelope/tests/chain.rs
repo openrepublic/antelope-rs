@@ -626,9 +626,9 @@ fn transaction_signature_verification() {
     // Alice account checks
     {
         let private_key =
-            PrivateKey::from_str("5KWu5C8FDdNcoCLta3hXuyDKJcxAgaaza3MLkwRJWwEz9C2dn5u", false)
+            PrivateKey::from_str("5KWu5C8FDdNcoCLta3hXuyDKJcxAgaaza3MLkwRJWwEz9C2dn5u")
                 .unwrap();
-        let public_key = private_key.to_public();
+        let public_key = private_key.to_public().unwrap();
         assert_eq!(
             public_key.to_legacy_string(None).unwrap(),
             "EOS77jzbmLuakAHpm2Q5ew8EL7Y7gGkfSzqJCmCNDDXWEsBP3xnDc"
@@ -636,7 +636,7 @@ fn transaction_signature_verification() {
 
         // Create a sample signature
         let message = b"I like turtles";
-        let signature = private_key.sign_message(&message.to_vec());
+        let signature = private_key.sign_message(&message.to_vec()).unwrap();
         let recovered_public_key = signature.recover_message(&message.to_vec());
         assert_eq!(
             recovered_public_key.to_legacy_string(None).unwrap(),
@@ -645,7 +645,7 @@ fn transaction_signature_verification() {
 
         // Create the signature of the transaction
         let message = transaction.signing_digest(&chain_id);
-        let signature = private_key.sign_message(&message.to_vec());
+        let signature = private_key.sign_message(&message.to_vec()).unwrap();
         println!("Alice signature: {}", signature);
         let recovered_public_key = signature.recover_message(&message.to_vec());
         assert_eq!(
@@ -685,9 +685,9 @@ fn transaction_signature_verification() {
 
         // Try to compute the same signature
         let private_key =
-            PrivateKey::from_str("5KWu5C8FDdNcoCLta3hXuyDKJcxAgaaza3MLkwRJWwEz9C2dn5u", true)
+            PrivateKey::from_str("5KWu5C8FDdNcoCLta3hXuyDKJcxAgaaza3MLkwRJWwEz9C2dn5u")
                 .unwrap();
-        let computed_signature = private_key.sign_message(&signing_data);
+        let computed_signature = private_key.sign_message(&signing_data).unwrap();
         println!("Computed signature: {}", computed_signature);
         assert_eq!(computed_signature, signature);
 

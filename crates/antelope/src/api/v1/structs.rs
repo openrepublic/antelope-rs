@@ -73,6 +73,9 @@ pub enum ChainAPIError {
     #[error("binary pack/unpack error: {0}")]
     Pack(String),
 
+    #[error("signature error: {0}")]
+    Signing(String),
+
     #[error("parse error: {0}")]
     Parse(String),
 }

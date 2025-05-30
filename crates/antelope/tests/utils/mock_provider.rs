@@ -2,6 +2,7 @@ use std::{
     fmt::{Debug, Formatter},
     fs,
     path::PathBuf,
+    str::FromStr
 };
 
 use antelope::{
@@ -98,11 +99,11 @@ pub fn make_mock_transaction(info: &GetInfoResponse, asset_to_transfer: Asset) -
 #[allow(dead_code)]
 pub fn sign_mock_transaction(trx: &Transaction, info: &GetInfoResponse) -> SignedTransaction {
     let private_key =
-        PrivateKey::from_str("5JW71y3njNNVf9fiGaufq8Up5XiGk68jZ5tYhKpy69yyU9cr7n9", false).unwrap();
+        PrivateKey::from_str("5JW71y3njNNVf9fiGaufq8Up5XiGk68jZ5tYhKpy69yyU9cr7n9").unwrap();
     let sign_data = trx.signing_data(info.chain_id.data.as_ref());
     SignedTransaction {
         transaction: trx.clone(),
-        signatures: vec![private_key.sign_message(&sign_data)],
+        signatures: vec![private_key.sign_message(&sign_data).unwrap()],
         context_free_data: vec![],
     }
 }

@@ -1,12 +1,15 @@
 use std::fmt::{Debug, Display, Formatter};
+use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 
 use crate::{base58::{decode_key, encode_check, encode_ripemd160_check}, chain::{
     checksum::Checksum512, key_type::KeyType, public_key::PublicKey, signature::Signature,
 }, crypto::{
-    generate::generate, get_public::get_public, shared_secrets::shared_secret, sign::sign,
+    generate::generate, shared_secrets::shared_secret, sign::sign,
 }, define_error};
+
+use super::public_key::PublicKeyParsingError;
 
 #[derive(Default, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PrivateKey {
@@ -46,9 +49,8 @@ impl PrivateKey {
         Ok(encode_check(to_encode))
     }
 
-    pub fn to_public(&self) -> PublicKey {
-        let compressed = get_public(self.value.to_vec(), self.key_type).unwrap();
-        PublicKey::from_bytes(compressed, self.key_type)
+    pub fn to_public(&self) -> Result<PublicKey, PublicKeyParsingError> {
+        PublicKey::try_from(self)
     }
 
     pub fn from_bytes(bytes: Vec<u8>, key_type: KeyType) -> Self {
@@ -58,26 +60,26 @@ impl PrivateKey {
         }
     }
 
-    pub fn from_str(key: &str, ignore_checksum: bool) -> Result<Self, String> {
-        let decode_result = decode_key(key, ignore_checksum);
-        if decode_result.is_err() {
-            let err_message = decode_result.err().unwrap_or(String::from("Unknown error"));
-            return Err(format!("Failed to decode private key: {err_message}"));
-        }
-
-        let decoded = decode_result.unwrap();
-        Ok(PrivateKey {
+    /// # Safety
+    /// Only call if you know key is a valid PrivateKey if not an invalid key will be
+    /// instantiated with no errors
+    pub unsafe fn from_str_unchecked(key: &str) -> PrivateKey {
+        let decoded = decode_key(key, true)
+            .unwrap_unchecked();
+        PrivateKey {
             key_type: decoded.0,
             value: decoded.1,
-        })
+        }
     }
 
-    pub fn sign_message(&self, message: &Vec<u8>) -> Signature {
-        sign(self.value.to_vec(), message, self.key_type).unwrap()
+    pub fn sign_message(&self, message: &Vec<u8>) -> Result<Signature, String> {
+        sign(self.value.to_vec(), message, self.key_type)
     }
 
-    pub fn shared_secret(&self, their_pub: &PublicKey) -> Checksum512 {
-        Checksum512::hash(shared_secret(&self.to_bytes(), &their_pub.value, self.key_type).unwrap())
+    pub fn shared_secret(&self, their_pub: &PublicKey) -> Result<Checksum512, String> {
+        Ok(Checksum512::hash(
+            shared_secret(&self.to_bytes(), &their_pub.value, self.key_type)?
+        ))
     }
 
     pub fn random(key_type: KeyType) -> Result<Self, String> {
@@ -100,10 +102,10 @@ impl Debug for PrivateKey {
 
 define_error!(PrivateKeyParsingError);
 
-impl TryFrom<&str> for PrivateKey {
-    type Error = PrivateKeyParsingError;
+impl FromStr for PrivateKey {
+    type Err = PrivateKeyParsingError;
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
         let (key_type, value) = decode_key(value, false)
             .map_err(|e| PrivateKeyParsingError::new(e.to_string()))?;
 

@@ -1,8 +1,11 @@
-use crate::{base58::{decode_public_key, encode_ripemd160_check}, chain::{key_type::KeyType}, define_error, util::bytes_to_hex};
+use crate::{base58::{decode_public_key, encode_ripemd160_check}, chain::key_type::KeyType, crypto::get_public::get_public, define_error, util::bytes_to_hex};
 use serde::{Deserialize, Deserializer, Serialize};
 use std::fmt;
 use std::fmt::{Display, Formatter};
+use std::str::FromStr;
 use crate::serializer::{Decoder, Encoder, Packer, PackerError};
+
+use super::private_key::PrivateKey;
 
 #[derive(Clone, Debug, Eq, PartialEq, Default, Serialize, Deserialize)]
 pub struct PublicKey {
@@ -62,7 +65,7 @@ impl PublicKey {
     }
 
     pub fn new_from_str(value: &str) -> Result<Self, String> {
-        PublicKey::try_from(value)
+        PublicKey::from_str(value)
             .map_err(|e| e.to_string())
     }
 
@@ -73,10 +76,10 @@ impl PublicKey {
 
 define_error!(PublicKeyParsingError);
 
-impl TryFrom<&str> for PublicKey {
-    type Error = PublicKeyParsingError;
+impl FromStr for PublicKey {
+    type Err = PublicKeyParsingError;
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
         match decode_public_key(value) {
             Ok(decoded) => Ok(PublicKey {
                 key_type: decoded.0,
@@ -84,6 +87,17 @@ impl TryFrom<&str> for PublicKey {
             }),
             Err(err_string) => Err(PublicKeyParsingError::new(err_string)),
         }
+    }
+}
+
+impl TryFrom<&PrivateKey> for PublicKey {
+    type Error = PublicKeyParsingError;
+
+    fn try_from(k: &PrivateKey) -> Result<Self, Self::Error> {
+        let compressed = get_public(k.value.clone(), k.key_type)
+            .map_err(PublicKeyParsingError::new)?;
+
+        Ok(PublicKey::from_bytes(compressed, k.key_type))
     }
 }
 
