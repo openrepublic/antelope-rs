@@ -109,10 +109,10 @@ impl PackedTransaction {
         let mut trx: HashMap<&str, Value> = HashMap::new();
         let signatures: Vec<String> = self.signatures.iter().map(|sig| sig.to_string()).collect();
         trx.insert("signatures", json!(signatures));
-        if self.compression.is_some() {
+        if let Some(compression) = self.compression {
             trx.insert(
                 "compression",
-                Value::Number(self.compression.unwrap().into()),
+                Value::Number(compression.into()),
             );
         }
         trx.insert(

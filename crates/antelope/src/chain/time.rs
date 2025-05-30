@@ -23,13 +23,10 @@ impl FromStr for TimePoint {
 impl TimePoint {
     pub fn from_timestamp(t: &str) -> Result<Self, String> {
         //2023-12-16T16:17:47.500
-        let naive_date_time = NaiveDateTime::parse_from_str(t, "%Y-%m-%dT%H:%M:%S%.f");
+        let naive_date_time = NaiveDateTime::parse_from_str(t, "%Y-%m-%dT%H:%M:%S%.f")
+            .map_err(|e| e.to_string())?;
 
-        if naive_date_time.is_err() {
-            return Err(String::from("Failed to parse datetime ")
-                + naive_date_time.err().unwrap().to_string().as_str());
-        }
-        let date_time = Utc.from_utc_datetime(&naive_date_time.unwrap());
+        let date_time = Utc.from_utc_datetime(&naive_date_time);
 
         Ok(Self {
             elapsed: (date_time.timestamp_millis() * 1000) as u64,
@@ -225,7 +222,7 @@ impl BlockTimestamp {
         TimePointSec { seconds }
     }
 
-    pub fn from_timestamp(s: &String) -> Result<Self, String> {
+    pub fn from_timestamp(s: &str) -> Result<Self, String> {
         Ok(BlockTimestamp::from_time_point_sec(TimePointSec::from_str(s)?))
     }
     pub fn to_string(&self) -> Option<String> {
