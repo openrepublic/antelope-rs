@@ -35,17 +35,19 @@ async fn chain_get_info() {
             .unwrap()
     );
 
-    let last_irreversible_block_id_bytes =
+    let last_irreversible_block_id_bytes_vec =
         hex::decode("12cf00e89773c8497415c368960b9c57ba6ee076283f71df14aeee2daefbb2a6")
             .expect("Invalid hex for last_irreversible_block_id");
+    let last_irreversible_block_id_bytes: [u8; 32] = last_irreversible_block_id_bytes_vec.try_into().unwrap();
     assert_eq!(
         result_unwrapped.last_irreversible_block_id.bytes, last_irreversible_block_id_bytes,
         "last_irreversible_block_id does not match"
     );
 
-    let head_block_id_bytes =
+    let head_block_id_bytes_vec =
         hex::decode("12cf02388e0ac11fedb6da8589890f55660b2c64efb758528bf3c0d4f54f5af7")
             .expect("Invalid hex for head_block_id");
+    let head_block_id_bytes: [u8; 32] = head_block_id_bytes_vec.try_into().unwrap();
     assert_eq!(
         result_unwrapped.head_block_id.bytes, head_block_id_bytes,
         "head_block_id does not match"

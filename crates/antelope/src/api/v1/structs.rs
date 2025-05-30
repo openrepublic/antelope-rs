@@ -112,25 +112,31 @@ pub struct GetInfoResponse {
     pub last_irreversible_block_time: String,
 }
 
+
 impl GetInfoResponse {
     pub fn get_transaction_header(&self, seconds_ahead: u32) -> TransactionHeader {
         let expiration = TimePointSec {
-            // head_block_time.elapsed is microseconds, convert to seconds
-            seconds: (self.head_block_time.elapsed / 1000 / 1000) as u32 + seconds_ahead,
+            seconds: (self.head_block_time.elapsed / 1_000_000) as u32 + seconds_ahead,
         };
-        let id = self.last_irreversible_block_id.bytes.to_vec();
-        let prefix_array = &id[8..12];
-        let prefix = u32::from_ne_bytes(prefix_array.try_into().unwrap());
+
+        // Destructure the array; the compiler guarantees it is 32 bytes long.
+        let [_, _, _, _, _, _, _, _, b8, b9, b10, b11, ..] =
+            self.last_irreversible_block_id.bytes;
+
+        // Native-endian;
+        let ref_block_prefix = u32::from_ne_bytes([b8, b9, b10, b11]);
+
         TransactionHeader {
             max_net_usage_words: VarUint32::default(),
             max_cpu_usage_ms: 0,
             delay_sec: VarUint32::default(),
             expiration,
             ref_block_num: (self.last_irreversible_block_num & 0xffff) as u16,
-            ref_block_prefix: prefix,
+            ref_block_prefix,
         }
     }
 }
+
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ProcessedTransactionReceipt {
@@ -194,17 +200,6 @@ pub struct SendTransactionResponse2ExceptionStack {
     pub data: Value,
 }
 
-impl From<SendTransactionResponseExceptionStack> for SendTransactionResponse2ExceptionStack {
-    fn from(value: SendTransactionResponseExceptionStack) -> Self {
-        let data: Value = serde_json::from_str(&value.data).expect("Failed to parse JSON");
-        Self {
-            context: value.context,
-            format: value.format,
-            data,
-        }
-    }
-}
-
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SendTransactionResponseError {
     pub code: Option<u32>,
@@ -221,24 +216,6 @@ pub struct SendTransactionResponse2Error {
     pub message: String,
     pub stack: Vec<SendTransactionResponse2ExceptionStack>,
     pub details: Option<Vec<SendTransactionResponseErrorDetails>>,
-}
-
-impl From<SendTransactionResponseError> for SendTransactionResponse2Error {
-    fn from(value: SendTransactionResponseError) -> Self {
-        let stack = value
-            .stack
-            .unwrap_or_default()
-            .into_iter()
-            .map(Into::into)
-            .collect::<Vec<_>>();
-        Self {
-            code: value.code,
-            name: value.name,
-            message: value.what,
-            stack,
-            details: Some(value.details),
-        }
-    }
 }
 
 impl SendTransactionResponseError {
