@@ -3,6 +3,8 @@ use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 
+use crate::crypto::shared_secrets::SharedSecretError;
+use crate::crypto::sign::SignError;
 use crate::{base58::{decode_key, encode_check, encode_ripemd160_check}, chain::{
     checksum::Checksum512, key_type::KeyType, public_key::PublicKey, signature::Signature,
 }, crypto::{
@@ -72,11 +74,11 @@ impl PrivateKey {
         }
     }
 
-    pub fn sign_message(&self, message: &Vec<u8>) -> Result<Signature, String> {
-        sign(self.value.to_vec(), message, self.key_type)
+    pub fn sign_message(&self, message: &[u8]) -> Result<Signature, SignError> {
+        sign(&self.value, message, self.key_type)
     }
 
-    pub fn shared_secret(&self, their_pub: &PublicKey) -> Result<Checksum512, String> {
+    pub fn shared_secret(&self, their_pub: &PublicKey) -> Result<Checksum512, SharedSecretError> {
         Ok(Checksum512::hash(
             shared_secret(&self.to_bytes(), &their_pub.value, self.key_type)?
         ))

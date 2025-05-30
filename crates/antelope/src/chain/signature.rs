@@ -1,5 +1,6 @@
 use core::fmt;
 use std::fmt::{Display, Formatter};
+use std::str::FromStr;
 
 use ecdsa::RecoveryId;
 use k256::Secp256k1;
@@ -10,11 +11,14 @@ use serde::{
 };
 
 use crate::chain::varint::VarUint32;
+use crate::crypto::recover::RecoverMessageError;
+use crate::crypto::verify::VerifyMessageError;
+use crate::packer_error;
 use crate::{
     base58,
     base58::encode_ripemd160_check,
     chain::{
-        key_type::{KeyType, KeyTypeTrait},
+        key_type::KeyType,
         public_key::PublicKey,
     },
     check_unpack_len,
@@ -44,20 +48,11 @@ impl Signature {
         self.value[33..65].to_vec()
     }
 
-    /*
-    // TODO: Figure out how to reconstruct a Digest from a byte array
-    //   currently there is no simple/clear way to do this and in verify.rs
-    //   the VerifyingKey has either verify(message_bytes) or verify_digest(Digest)
-    pub fn verify_digest(&self, digest: Checksum256, public_key: PublicKey) -> bool {
-        return verify(self, digest.checksum.value, public_key.value, self.key_type);
-    }
-     */
-
-    pub fn verify_message(&self, message: &Vec<u8>, public_key: &PublicKey) -> bool {
+    pub fn verify_message(&self, message: &[u8], public_key: &PublicKey) -> Result<(), VerifyMessageError> {
         verify_message(self, message, &public_key.value)
     }
 
-    pub fn recover_message(&self, message: &Vec<u8>) -> PublicKey {
+    pub fn recover_message(&self, message: &[u8]) -> Result<PublicKey, RecoverMessageError> {
         recover_message(self, message)
     }
 
@@ -65,47 +60,41 @@ impl Signature {
         let type_str = self.key_type.to_string();
         let encoded = encode_ripemd160_check(
             self.value.to_vec(),
-            Option::from(self.key_type.to_string().as_str()),
+            Some(type_str.as_str()),
         );
         format!("SIG_{type_str}_{encoded}")
     }
 
-    pub fn from_string(s: &str) -> Result<Self, String> {
-        if !s.starts_with("SIG_") {
-            return Err(format!("String did not start with SIG_: {s}"));
-        }
-        let parts: Vec<&str> = s.split('_').collect();
-        let key_type = KeyType::from_string(parts[1]).unwrap();
-        let size = match key_type {
-            KeyType::K1 | KeyType::R1 => Some(65),
-            KeyType::WA => None,
-        };
+    pub fn from_bytes(bytes: Vec<u8>, key_type: KeyType) -> Self {
+        Signature { key_type, value: bytes }
+    }
 
-        let value =
-            base58::decode_ripemd160_check(parts[2], size, Option::from(key_type), false).unwrap();
-        Ok(Signature { key_type, value })
+    pub fn is_canonical(r: &[u8], s: &[u8]) -> bool {
+        !((r[0] & 0x80 != 0)
+            || (s[0] & 0x80 != 0)
+            || (r[0] == 0 && (r[1] & 0x80) == 0)
+            || (s[0] == 0 && (s[1] & 0x80) == 0))
     }
 
     pub fn from_k1_signature(
-        signature: ecdsa::Signature<Secp256k1>,
+        sig: ecdsa::Signature<Secp256k1>,
         recovery: RecoveryId,
     ) -> Result<Self, String> {
-        let r = signature.r().to_bytes().to_vec();
-        let s = signature.s().to_bytes().to_vec();
-        let mut data: Vec<u8> = Vec::new();
-        let recid = recovery.to_byte() + Signature::RECOVERY_ID_ADDITION;
+        let mut data = Vec::with_capacity(65);
+        let recid = recovery.to_byte() + Self::RECOVERY_ID_ADDITION;
+        let r = sig.r().to_bytes();
+        let s = sig.s().to_bytes();
 
         if r.len() != 32 || s.len() != 32 {
-            return Err(String::from("r and s values should both have a size of 32"));
+            return Err("r and s values should both have a size of 32".into());
         }
-
-        if !Signature::is_canonical(&r, &s) {
-            return Err(String::from("Signature values are not canonical"));
+        if !Self::is_canonical(&r, &s) {
+            return Err("Signature values are not canonical".into());
         }
 
         data.push(recid);
-        data.extend(r.to_vec());
-        data.extend(s.to_vec());
+        data.extend_from_slice(&r);
+        data.extend_from_slice(&s);
 
         Ok(Signature {
             key_type: KeyType::K1,
@@ -114,40 +103,62 @@ impl Signature {
     }
 
     pub fn from_r1_signature(
-        signature: ecdsa::Signature<NistP256>,
+        sig: ecdsa::Signature<NistP256>,
         recovery: RecoveryId,
     ) -> Result<Self, String> {
-        let r = signature.r().to_bytes().to_vec();
-        let s = signature.s().to_bytes().to_vec();
-        let mut data: Vec<u8> = Vec::new();
+        let mut data = Vec::with_capacity(65);
         let recid = recovery.to_byte();
+        let r = sig.r().to_bytes();
+        let s = sig.s().to_bytes();
 
         if r.len() != 32 || s.len() != 32 {
-            return Err(String::from("r and s values should both have a size of 32"));
+            return Err("r and s values should both have a size of 32".into());
         }
 
         data.push(recid);
-        data.extend(r.to_vec());
-        data.extend(s.to_vec());
+        data.extend_from_slice(&r);
+        data.extend_from_slice(&s);
 
         Ok(Signature {
             key_type: KeyType::R1,
             value: data,
         })
     }
+}
 
-    pub fn from_bytes(bytes: Vec<u8>, key_type: KeyType) -> Self {
-        Signature {
-            key_type,
-            value: bytes,
+impl FromStr for Signature {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut parts = s.splitn(3, '_');
+        if parts.next() != Some("SIG") {
+            return Err(format!("invalid signature prefix: {s}"));
         }
+        let ty = parts.next().ok_or_else(|| "missing key type".to_string())?;
+        let payload = parts.next().ok_or_else(|| "missing payload".to_string())?;
+        let key_type = KeyType::from_str(ty)?;
+        let size = match key_type {
+            KeyType::K1 | KeyType::R1 => Some(65),
+            KeyType::WA => None,
+        };
+        let value = base58::decode_ripemd160_check(payload, size, Some(key_type), false)
+            .map_err(|e| e.to_string())?;
+        Ok(Signature { key_type, value })
     }
+}
 
-    pub fn is_canonical(r: &[u8], s: &[u8]) -> bool {
-        !((r[0] & 0x80 != 0)
-            || (s[0] & 0x80 != 0)
-            || r[0] == 0 && r[1] & 0x80 == 0
-            || s[0] == 0 && s[1] & 0x80 == 0)
+impl Display for Signature {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_string())
+    }
+}
+
+impl Default for Signature {
+    fn default() -> Self {
+        Signature {
+            key_type: KeyType::K1,
+            value: vec![0; 65],
+        }
     }
 }
 
@@ -161,33 +172,18 @@ where
         type Value = Signature;
 
         fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-            formatter.write_str("a hex string of length 64 (for 32 bytes)")
+            formatter.write_str("a SIG_<type>_<base58> formatted string")
         }
 
-        fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+        fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
         where
             E: de::Error,
         {
-            Signature::from_string(value).map_err(E::custom)
+            v.parse().map_err(E::custom)
         }
     }
 
     deserializer.deserialize_str(SignatureVisitor)
-}
-
-impl Display for Signature {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.as_string())
-    }
-}
-
-impl Default for Signature {
-    fn default() -> Self {
-        Self {
-            key_type: KeyType::K1,
-            value: vec![0; 65],
-        }
-    }
 }
 
 impl Packer for Signature {
@@ -197,37 +193,35 @@ impl Packer for Signature {
 
     fn pack(&self, enc: &mut Encoder) -> usize {
         self.key_type.pack(enc);
-        let data = enc.alloc(self.value.len());
-        slice_copy(data, &self.value);
+        let buf = enc.alloc(self.value.len());
+        slice_copy(buf, &self.value);
         self.size()
     }
 
     fn unpack(&mut self, data: &[u8]) -> Result<usize, PackerError> {
-        self.key_type = KeyType::from_index(data[0]).unwrap();
+        self.key_type = KeyType::try_from(data[0])
+            .map_err(|e| packer_error!("KeyType::try_from: {e}"))?;
         match self.key_type {
             KeyType::K1 | KeyType::R1 => {
                 self.value = data[1..66].to_vec();
             }
             KeyType::WA => {
-                let mut size = 66; // size to start = 1 byte for key type, 65 bytes for compact signature
-                let mut auth_data = VarUint32::default();
-                // unpack() returns how many bytes were read to unpack the value
-                size += auth_data.unpack(&data[size..])?; // after the compact sig comes a varuint32 to tell us the size of the auth data
-                size += auth_data.value() as usize; // add the auth data size
-                let mut client_json = VarUint32::default();
-                size += client_json.unpack(&data[size..])?; // read the varuint32 size of the client_json
-                size += client_json.value() as usize; // add the client_json size
-                                                      // set value to be the whole payload (after the key type byte):
-                                                      //      compact sig,
-                                                      //      varuint32 auth data size,
-                                                      //      auth data,
-                                                      //      varuint32 client_json size,
-                                                      //      client_json
-                self.value = data[1..size].to_vec();
+                // skip key_type(1) + compact sig(65)
+                let mut offset = 1 + 65;
+                let mut auth_sz = VarUint32::default();
+                let n = auth_sz.unpack(&data[offset..])?;
+                offset += n + auth_sz.value() as usize;
+
+                let mut client_sz = VarUint32::default();
+                let m = client_sz.unpack(&data[offset..])?;
+                offset += m + client_sz.value() as usize;
+
+                // capture everything after the key_type byte
+                self.value = data[1..offset].to_vec();
             }
         }
-        let size = 1 + self.value.len();
-        check_unpack_len!(self, data, size);
-        Ok(size)
+        let total = 1 + self.value.len();
+        check_unpack_len!(self, data, total);
+        Ok(total)
     }
 }

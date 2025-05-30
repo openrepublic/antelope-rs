@@ -133,12 +133,12 @@ fn sign_and_verify() {
             .unwrap();
     let message = String::from("I like turtles").into_bytes();
     let signature = priv_key.sign_message(&message).unwrap();
-    assert!(signature.verify_message(&message, &pub_key));
-    assert!(!signature.verify_message(&b"beef".to_vec(), &pub_key));
-    assert!(!signature.verify_message(
+    assert!(signature.verify_message(&message, &pub_key).is_ok());
+    assert!(signature.verify_message(&b"beef".to_vec(), &pub_key).is_err());
+    assert!(signature.verify_message(
         &message,
         &PublicKey::new_from_str("EOS7HBX4f8UknP5NNoX8ixCx4YrA8JcPhGbuQ7Xem8gmWg1nviTqR").unwrap()
-    ));
+    ).is_err());
     // r1
     let priv_key2 = PrivateKey::from_str(
         "PVT_R1_2dSFGZnA4oFvMHwfjeYCtK2MLLPNYWgYRXrPTcnTaLZFkDSELm"
@@ -148,7 +148,7 @@ fn sign_and_verify() {
         PublicKey::new_from_str("PUB_R1_8E46r5HiQF84o6V8MWQQg1vPpgfjYA4XDqT6xbtaaebxw7XbLu")
             .unwrap();
     let signature2 = priv_key2.sign_message(&message).unwrap();
-    assert!(signature2.verify_message(&message, &pub_key2));
+    assert!(signature2.verify_message(&message, &pub_key2).is_ok());
 }
 
 #[test]
@@ -157,8 +157,8 @@ fn sign_and_recover() {
         PrivateKey::from_str("5KQvfsPJ9YvGuVbLRLXVWPNubed6FWvV8yax6cNSJEzB4co3zFu").unwrap();
     let message = b"I like turtles".to_vec();
     let signature = key.sign_message(&message).unwrap();
-    let recovered_key = signature.recover_message(&message);
-    let recovered_key_failure = signature.recover_message(&b"beef".to_vec());
+    let recovered_key = signature.recover_message(&message).unwrap();
+    let recovered_key_failure = signature.recover_message(&b"beef".to_vec()).unwrap();
     assert_eq!(
         recovered_key.to_string(),
         "PUB_K1_6RrvujLQN1x5Tacbep1KAk8zzKpSThAQXBCKYFfGUYeACcSRFs"
@@ -181,7 +181,7 @@ fn sign_and_recover() {
     )
     .unwrap();
     let r1_signature = r1_private_key.sign_message(&message).unwrap();
-    let recovered_r1_key = r1_signature.recover_message(&message);
+    let recovered_r1_key = r1_signature.recover_message(&message).unwrap();
     assert_eq!(
         recovered_r1_key.to_string(),
         "PUB_R1_8E46r5HiQF84o6V8MWQQg1vPpgfjYA4XDqT6xbtaaebxw7XbLu"

@@ -23,6 +23,7 @@ use crate::chain::{
     transaction::TransactionHeader,
     varint::VarUint32,
 };
+use crate::crypto::sign::SignError;
 use tracing::info;
 use serde_json::Error as JsonError;
 use thiserror::Error;
@@ -73,8 +74,8 @@ pub enum ChainAPIError {
     #[error("binary pack/unpack error: {0}")]
     Pack(String),
 
-    #[error("signature error: {0}")]
-    Signing(String),
+    #[error(transparent)]
+    Signing(SignError),
 
     #[error("parse error: {0}")]
     Parse(String),

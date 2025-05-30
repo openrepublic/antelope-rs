@@ -637,7 +637,7 @@ fn transaction_signature_verification() {
         // Create a sample signature
         let message = b"I like turtles";
         let signature = private_key.sign_message(&message.to_vec()).unwrap();
-        let recovered_public_key = signature.recover_message(&message.to_vec());
+        let recovered_public_key = signature.recover_message(&message.to_vec()).unwrap();
         assert_eq!(
             recovered_public_key.to_legacy_string(None).unwrap(),
             "EOS77jzbmLuakAHpm2Q5ew8EL7Y7gGkfSzqJCmCNDDXWEsBP3xnDc"
@@ -647,7 +647,7 @@ fn transaction_signature_verification() {
         let message = transaction.signing_digest(&chain_id);
         let signature = private_key.sign_message(&message.to_vec()).unwrap();
         println!("Alice signature: {}", signature);
-        let recovered_public_key = signature.recover_message(&message.to_vec());
+        let recovered_public_key = signature.recover_message(&message.to_vec()).unwrap();
         assert_eq!(
             recovered_public_key.to_legacy_string(None).unwrap(),
             "EOS77jzbmLuakAHpm2Q5ew8EL7Y7gGkfSzqJCmCNDDXWEsBP3xnDc"
@@ -692,7 +692,7 @@ fn transaction_signature_verification() {
         assert_eq!(computed_signature, signature);
 
         // Recover the public key from the signature
-        let public_key = signature.recover_message(&signing_data);
+        let public_key = signature.recover_message(&signing_data).unwrap();
         println!("Public key: {}", public_key.to_legacy_string(None).unwrap());
         assert_eq!(
             public_key.to_legacy_string(None).unwrap(),
@@ -700,11 +700,11 @@ fn transaction_signature_verification() {
         );
 
         // Verify the signature
-        assert!(signature.verify_message(&signing_data, &public_key));
+        assert!(signature.verify_message(&signing_data, &public_key).is_ok());
 
         // Check that the verification fails if we change a byte of the signing digest
         signing_data[0] += 1;
-        assert!(!signature.verify_message(&signing_data, &public_key));
+        assert!(signature.verify_message(&signing_data, &public_key).is_err());
     }
 }
 
