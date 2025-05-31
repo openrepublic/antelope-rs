@@ -15,9 +15,12 @@ pub mod time;
 pub mod transaction;
 pub mod varint;
 
+
 #[macro_export]
 macro_rules! name {
-    ($str:expr) => {
-        Name::try_from($str).expect(&format!("Invalid name: \"{}\"", $str))
-    };
+    ($str:expr) => {{
+        <Name as ::std::str::FromStr>::from_str($str)
+            .expect(&format!("Invalid name: \"{}\"", $str))
+    }};
 }
+

@@ -610,15 +610,15 @@ fn transaction_signature_verification() {
     // Decoding checks
     {
         let action = transaction.actions.first().unwrap();
-        let sender = action.authorization.first().unwrap().actor.as_string().unwrap();
-        println!("Contract account: {}", action.account.as_string().unwrap());
-        println!("Action name: {}", action.name.as_string().unwrap());
+        let sender = action.authorization.first().unwrap().actor.as_str().unwrap();
+        println!("Contract account: {}", action.account.as_str().unwrap());
+        println!("Action name: {}", action.name.as_str().unwrap());
         println!("Sender: {}", sender);
         println!("Request data: {:?}", action.data);
         println!();
 
-        assert_eq!(action.account.as_string().unwrap(), "eosio.aggreq");
-        assert_eq!(action.name.as_string().unwrap(), "requestaggr");
+        assert_eq!(action.account.as_str().unwrap(), "eosio.aggreq");
+        assert_eq!(action.name.as_str().unwrap(), "requestaggr");
         assert_eq!(sender, "alice");
         assert_eq!(
             action.data,

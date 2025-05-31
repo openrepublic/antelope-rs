@@ -151,7 +151,7 @@ impl<T: Provider> SystemAPI<T> {
         let wasm_hash = hasher.finalize();
         info!(
             "Setting contract for account: {:?}, with hash: {:?}",
-            account.as_string(),
+            account,
             wasm_hash
         );
         Ok(self.api_client
