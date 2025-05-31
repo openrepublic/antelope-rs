@@ -34,6 +34,13 @@ pub struct SymbolCode {
     value: u64,
 }
 
+impl SymbolCode {
+    #[inline]
+    pub fn value(&self) -> u64 {
+        self.value
+    }
+}
+
 #[derive(Debug, Error)]
 #[error("{0}")]
 pub struct SymbolCodeError(String);
