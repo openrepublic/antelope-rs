@@ -10,7 +10,7 @@ use crate::{chain::name::{
 }, define_error};
 use phf::phf_set;
 
-static BUILTIN_TYPES: phf::Set<&'static str> = phf_set! {
+pub static BUILTIN_TYPES: phf::Set<&'static str> = phf_set! {
     "bool",
 
     "uint8",
