@@ -27,7 +27,7 @@ impl FromStr for KeyType {
             "K1" => Ok(KeyType::K1),
             "R1" => Ok(KeyType::R1),
             "WA" => Ok(KeyType::WA),
-            _ => Err(format!("unknown key type '{}'", s)),
+            _ => Err(format!("unknown key type '{s}'")),
         }
     }
 }
@@ -40,7 +40,7 @@ impl TryFrom<u8> for KeyType {
             0 => Ok(KeyType::K1),
             1 => Ok(KeyType::R1),
             2 => Ok(KeyType::WA),
-            i => Err(format!("unknown KeyType index {}", i)),
+            i => Err(format!("unknown KeyType index {i}")),
         }
     }
 }
@@ -79,7 +79,7 @@ impl Packer for KeyType {
     fn unpack(&mut self, data: &[u8]) -> Result<usize, PackerError> {
         check_unpack_len!(self, data, 1);
         *self = KeyType::try_from(data[0])
-            .map_err(|e| packer_error!("KeyType index error: {}", e))?;
+            .map_err(|e| packer_error!("KeyType index error: {e}"))?;
         Ok(1)
     }
 }

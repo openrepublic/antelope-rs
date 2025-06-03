@@ -282,7 +282,7 @@ impl<T: Provider> ChainAPI<T> {
                                 .map_err(|e| ChainAPIError::Parse(e.to_string()))?
                                 .as_slice(),
                         )
-                        .map_err(|e| ChainAPIError::Parse(format!("bad checksum160: {}", e)))?,
+                        .map_err(|e| ChainAPIError::Parse(format!("bad checksum160: {e}")))?,
                     ),
                 ),
                 Some(TableIndexType::CHECKSUM256(_)) => Some(
@@ -292,7 +292,7 @@ impl<T: Provider> ChainAPI<T> {
                                 .map_err(|e| ChainAPIError::Parse(e.to_string()))?
                                 .as_slice(),
                         )
-                        .map_err(|e| ChainAPIError::Parse(format!("bad checksum256: {}", e)))?,
+                        .map_err(|e| ChainAPIError::Parse(format!("bad checksum256: {e}")))?,
                     ),
                 ),
                 Some(TableIndexType::FLOAT64(_)) => Some(TableIndexType::FLOAT64(
