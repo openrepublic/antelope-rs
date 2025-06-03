@@ -50,6 +50,13 @@ impl Checksum160 {
     }
 }
 
+impl From<[u8; 20]> for Checksum160 {
+    #[inline]
+    fn from(data: [u8; 20]) -> Self {
+        Checksum160 { data }
+    }
+}
+
 impl Display for Checksum160 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.as_string())
@@ -160,6 +167,13 @@ impl Checksum256 {
     }
 }
 
+impl From<[u8; 32]> for Checksum256 {
+    #[inline]
+    fn from(data: [u8; 32]) -> Self {
+        Checksum256 { data }
+    }
+}
+
 impl Display for Checksum256 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.as_string())
@@ -211,6 +225,13 @@ impl Checksum512 {
 
     pub fn as_string(&self) -> String {
         bytes_to_hex(&self.data.to_vec())
+    }
+}
+
+impl From<[u8; 64]> for Checksum512 {
+    #[inline]
+    fn from(data: [u8; 64]) -> Self {
+        Checksum512 { data }
     }
 }
 
