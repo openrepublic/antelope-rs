@@ -6,8 +6,8 @@ use crate::chain::name::Name;
 use crate::{check_unpack_len, packer_error};
 use crate::serializer::{Decoder, Encoder, Packer, PackerError};
 
-const MAX_AMOUNT: i64 = (1 << 62) - 1;
-const MAX_PRECISION: u8 = 18;
+pub const ASSET_MAX_AMOUNT: i64 = (1 << 62) - 1;
+pub const ASSET_MAX_PRECISION: u8 = 18;
 
 #[inline]
 pub fn is_valid_symbol_code(sym: u64) -> bool {
@@ -40,6 +40,12 @@ impl SymbolCode {
         self.value
     }
 }
+
+impl From<SymbolCode> for u64 {
+    #[inline]
+    fn from(s: SymbolCode) -> u64 { s.value }
+}
+
 
 #[derive(Debug, Error)]
 #[error("{0}")]
@@ -89,7 +95,7 @@ impl fmt::Display for SymbolCode {
             s.push(c as char);
             tmp >>= 8;
         }
-        write!(f, "{}", s)
+        write!(f, "{s}")
     }
 }
 
@@ -137,10 +143,12 @@ pub fn str_to_symbol(input: &str) -> Result<u64, SymbolError> {
 }
 
 impl From<u64> for Symbol {
+    #[inline]
     fn from(value: u64) -> Self { Self { value } }
 }
 
 impl From<Symbol> for u64 {
+    #[inline]
     fn from(s: Symbol) -> u64 { s.value }
 }
 
@@ -218,7 +226,7 @@ pub struct AssetOpError(String);
 impl TryFrom<(i64, Symbol)> for Asset {
     type Error = AssetParseError;
     fn try_from((amt, sym): (i64, Symbol)) -> Result<Self, Self::Error> {
-        if !(-MAX_AMOUNT..=MAX_AMOUNT).contains(&amt) {
+        if !(-ASSET_MAX_AMOUNT..=ASSET_MAX_AMOUNT).contains(&amt) {
             return Err(AssetParseError("amount out of range".into()));
         }
         Ok(Asset { amount: amt, symbol: sym })
@@ -302,7 +310,7 @@ impl FromStr for Asset {
                         .checked_mul(10)
                         .and_then(|a| a.checked_add((c - b'0') as i64))
                         .ok_or_else(|| AssetParseError("amount overflow".into()))?;
-                    if prec > MAX_PRECISION {
+                    if prec > ASSET_MAX_PRECISION {
                         return Err(AssetParseError("precision too high".into()));
                     }
                 }
@@ -334,7 +342,10 @@ impl fmt::Display for Asset {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let p = self.symbol.precision() as usize;
         let abs = self.amount.unsigned_abs();
-        let pow10 = 10u64.pow(p as u32);
+        let mut pow10 = 10u64.pow(p as u32);
+        if pow10 == 0 {
+            pow10 = 1;
+        }
         let int = self.amount / pow10 as i64;
         let frac = abs % pow10;
         if p > 0 {
@@ -420,9 +431,9 @@ impl fmt::Display for ExtendedAsset {
 #[error("{0}")]
 pub struct ExtendedAssetError(String);
 
-impl TryFrom<&str> for ExtendedAsset {
-    type Error = ExtendedAssetError;
-    fn try_from(s: &str) -> Result<Self, Self::Error> {
+impl FromStr for ExtendedAsset {
+    type Err = ExtendedAssetError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         let parts: Vec<_> = s.split('@').collect();
         if parts.len() != 2 {
             return Err(ExtendedAssetError("invalid format".into()));
