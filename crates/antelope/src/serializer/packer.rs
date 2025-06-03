@@ -220,6 +220,16 @@ impl<'a> Decoder<'a> {
     pub fn get_pos(&self) -> usize {
         self.pos
     }
+
+    /// Returns the total size of the buffer to decode
+    pub fn size(&self) -> usize {
+        self.buf.len()
+    }
+
+    /// Return the amount of remaining bytes to decode
+    pub fn remaining(&self) -> usize {
+        self.buf.len() - self.pos
+    }
 }
 
 /// A trait for packing and unpacking values
