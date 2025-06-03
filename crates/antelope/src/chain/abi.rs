@@ -96,8 +96,8 @@ pub struct ABIResolvedType {
     pub resolved_name: String,
     pub is_std: bool,
     pub is_alias: bool,
-    pub is_struct: bool,
-    pub is_variant: bool,
+    pub is_struct: Option<AbiStruct>,
+    pub is_variant: Option<AbiVariant>,
     pub modifiers: Vec<TypeModifier>,
 }
 
@@ -125,7 +125,7 @@ fn split_type_modifiers(mut name: &str) -> Result<(String, Vec<TypeModifier>), A
         if name.ends_with(']') && name.rfind('[').is_some_and(|lb| name[lb+1..name.len()-1].chars().all(char::is_numeric))
         {
             return Err(ABIResolveError::fmt(format_args!(
-                "Fixed-size arrays like “{}” are not supported", name)));
+                "Fixed-size arrays like “{name}” are not supported")));
         }
         break;
     }
@@ -180,7 +180,7 @@ impl<ABI: ABIView> ABITypeResolver for ABI {
         while let Some(target) = self.resolve_alias(&base) {
             if !visited_aliases.insert(base.clone()) {
                 return Err(ABIResolveError::fmt(format_args!(
-                    "Circular alias detected: {:?} -> {}", visited_aliases, base
+                    "Circular alias detected: {visited_aliases:?} -> {base}"
                 )));
             }
             is_alias = true;
@@ -191,12 +191,12 @@ impl<ABI: ABIView> ABITypeResolver for ABI {
 
         // resolve type meta flags
         let is_std     = BUILTIN_TYPES.contains(base.as_str());
-        let is_struct  = self.structs().iter().any(|s| s.name == base);
-        let is_variant = self.variants().iter().any(|v| v.name == base);
+        let is_struct  = self.structs().iter().find(|s| s.name == base).cloned();
+        let is_variant = self.variants().iter().find(|v| v.name == base).cloned();
 
-        if !(is_std || is_struct || is_variant) {
+        if !(is_std || is_struct.is_some() || is_variant.is_some()) {
             return Err(ABIResolveError::fmt(format_args!(
-                "Unknown type “{}” after alias resolution", base)));
+                "Unknown type “{base}” after alias resolution")));
         }
 
         Ok(ABIResolvedType {
