@@ -132,13 +132,10 @@ impl FromStr for Name {
     }
 }
 
-impl TryFrom<u64> for Name {
-    type Error = NameError;
-
-    fn try_from(v: u64) -> Result<Self, Self::Error> {
-        // validate round-trip
-        name_to_string(v)?;
-        Ok(Name { n: v })
+impl From<u64> for Name {
+    #[inline]
+    fn from(n: u64) -> Self {
+        Name { n }
     }
 }
 
