@@ -193,7 +193,7 @@ impl<T: Provider> ChainAPI<T> {
         &self,
         trx_id: Checksum256,
     ) -> Result<GetTransactionStatusResponse, ChainAPIError> {
-        let payload = serde_json::json!({ "id": trx_id.as_string() });
+        let payload = serde_json::json!({ "id": trx_id.to_string() });
 
         let result = self
             .provider

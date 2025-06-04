@@ -9,10 +9,10 @@ use sha2::{Sha256, Sha512};
 
 use crate::{
     check_unpack_len,
-    util::{bytes_to_hex, slice_copy}
+    util::slice_copy
 };
 use crate::serializer::{Encoder, Packer, PackerError};
-use hex::decode;
+use hex::{decode, encode};
 
 #[derive(Clone, Copy, Eq, PartialEq, Default, Serialize, Deserialize, Debug)]
 pub struct Checksum160 {
@@ -44,10 +44,6 @@ impl Checksum160 {
         let result = hasher.finalize();
         Self { data: result.into() }
     }
-
-    pub fn as_string(&self) -> String {
-        bytes_to_hex(&self.data.to_vec())
-    }
 }
 
 impl From<[u8; 20]> for Checksum160 {
@@ -59,7 +55,7 @@ impl From<[u8; 20]> for Checksum160 {
 
 impl Display for Checksum160 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.as_string())
+        write!(f, "{}", encode(self.data))
     }
 }
 
@@ -144,27 +140,6 @@ impl Checksum256 {
         let result = hasher.finalize();
         Self { data: result.into() }
     }
-
-    pub fn as_string(&self) -> String {
-        bytes_to_hex(&self.data.to_vec())
-    }
-
-    pub fn to_index(&self) -> String {
-        assert_eq!(self.data.len(), 32);
-
-        let (first_16, second_16) = self.data.split_at(16);
-
-        let mut first_reversed = first_16.to_vec();
-        first_reversed.reverse();
-
-        let mut second_reversed = second_16.to_vec();
-        second_reversed.reverse();
-
-        let mut new_vec = second_reversed;
-        new_vec.extend(first_reversed);
-
-        bytes_to_hex(&new_vec)
-    }
 }
 
 impl From<[u8; 32]> for Checksum256 {
@@ -176,7 +151,7 @@ impl From<[u8; 32]> for Checksum256 {
 
 impl Display for Checksum256 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.as_string())
+        write!(f, "{}", encode(self.data))
     }
 }
 
@@ -222,10 +197,6 @@ impl Checksum512 {
     pub fn hash(bytes: Vec<u8>) -> Self {
         Checksum512::from_bytes(Sha512::digest(bytes).as_slice())
     }
-
-    pub fn as_string(&self) -> String {
-        bytes_to_hex(&self.data.to_vec())
-    }
 }
 
 impl From<[u8; 64]> for Checksum512 {
@@ -237,7 +208,7 @@ impl From<[u8; 64]> for Checksum512 {
 
 impl Display for Checksum512 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.as_string())
+        write!(f, "{}", encode(self.data))
     }
 }
 
