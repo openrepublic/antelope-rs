@@ -5,25 +5,13 @@ use ripemd::{Digest as Ripemd160Digest};
 use serde::de::Visitor;
 use serde::{de, Deserialize, Deserializer, Serialize};
 
-use crate::{
-    util::slice_copy
-};
-use crate::serializer::Encoder;
-use serde_big_array::BigArray;
-
-fn pack_checksum(size: usize, data: &[u8], enc: &mut Encoder) -> usize {
-    let allocated = enc.alloc(size);
-    slice_copy(allocated, data);
-    size
-}
-
 /// All checksum classes are defined using this macro (see below)
 #[macro_export]
 macro_rules! define_checksum {
     ($name:ident, $bits:literal, $hasher:path, $err_name:ident) => {
         #[derive(Clone, Copy, Eq, PartialEq, Serialize, Deserialize, Debug)]
         pub struct $name {
-            #[serde(with = "BigArray")]
+            #[serde(with = "serde_big_array::BigArray")]
             pub data: [u8; $bits / 8],
         }
 
@@ -79,7 +67,8 @@ macro_rules! define_checksum {
         impl $crate::serializer::Packer for $name {
             fn size(&self) -> usize { $bits / 8 }
             fn pack(&self, enc: &mut $crate::serializer::Encoder) -> usize {
-                pack_checksum(self.size(), &self.data, enc)
+                enc.pack_raw(&self.data);
+                $bits / 8
             }
             fn unpack(&mut self, raw: &[u8]) -> Result<usize, $crate::serializer::PackerError> {
                 $crate::check_unpack_len!(self, raw, $bits / 8);
@@ -90,7 +79,7 @@ macro_rules! define_checksum {
 
         paste::paste! {
             #[allow(non_snake_case, dead_code)]
-            pub(crate) fn [<deserialize_checksum $bits>]<'de, D>(
+            pub(crate) fn [<deserialize_ $name:lower>]<'de, D>(
                 deserializer: D,
             ) -> Result<$name, D::Error>
             where
@@ -100,7 +89,10 @@ macro_rules! define_checksum {
                 impl<'de> Visitor<'de> for VisitorImpl {
                     type Value = $name;
 
-                    fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                    fn expecting(
+                        &self,
+                        f: &mut fmt::Formatter,
+                    ) -> fmt::Result {
                         write!(
                             f,
                             "a hex string of length {} ({} bytes)",
@@ -109,15 +101,35 @@ macro_rules! define_checksum {
                         )
                     }
 
-                    fn visit_str<E>(self, s: &str) -> Result<Self::Value, E>
+                    fn visit_str<E>(
+                        self,
+                        s: &str,
+                    ) -> Result<Self::Value, E>
                     where
                         E: de::Error,
                     {
-                        $name::from_str(s).map_err(|e| de::Error::custom(e.to_string()))
+                        $name::from_str(s)
+                            .map_err(|e| de::Error::custom(e.to_string()))
                     }
                 }
 
                 deserializer.deserialize_str(VisitorImpl)
+            }
+
+            #[allow(non_snake_case, dead_code)]
+            pub(crate) fn [<deserialize_optional_ $name:lower>]<'de, D>(
+                deserializer: D,
+            ) -> Result<Option<$name>, D::Error>
+            where
+                D: Deserializer<'de>,
+            {
+                let opt = <Option<String>>::deserialize(deserializer)?;
+                match opt {
+                    Some(s) => $name::from_str(&s)
+                        .map(Some)
+                        .map_err(|e| serde::de::Error::custom(e.to_string())),
+                    None => Ok(None),
+                }
             }
         }
     };
@@ -126,3 +138,13 @@ macro_rules! define_checksum {
 define_checksum!(Checksum160, 160, ripemd::Ripemd160, Sum160ParseError);
 define_checksum!(Checksum256, 256, sha2::Sha256, Sum256ParseError);
 define_checksum!(Checksum512, 512, sha2::Sha512, Sum512ParseError);
+
+define_checksum!(BlockId, 256, sha2::Sha256, BlockIdParseError);
+
+
+impl BlockId {
+    pub fn block_num(&self) -> u32 {
+        let [a, b, c, d, ..] = self.data;
+        u32::from_be_bytes([a, b, c, d])
+    }
+}

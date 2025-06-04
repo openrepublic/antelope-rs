@@ -157,6 +157,16 @@ impl Encoder {
         &mut self.buf[old_size..]
     }
 
+    /// Pack a raw slice directly
+    ///
+    /// # Arguments
+    ///
+    /// * `bytes` - The slice to append at the end of the current encoder payload.
+    pub fn pack_raw(&mut self, bytes: &[u8]) {
+        let target = self.alloc(bytes.len());
+        target.copy_from_slice(bytes);
+    }
+
     /// Packs the given value using the encoder
     ///
     /// # Arguments

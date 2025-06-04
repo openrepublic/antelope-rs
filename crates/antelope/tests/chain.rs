@@ -8,8 +8,7 @@ use antelope::{
     chain::{
         action::{Action, PermissionLevel},
         asset::{Asset, Symbol},
-        block_id::BlockId,
-        checksum::{Checksum160, Checksum256, Checksum512},
+        checksum::{Checksum160, Checksum256, Checksum512, BlockId},
         name::Name,
         transaction::{Transaction, TransactionHeader},
     },
@@ -111,8 +110,7 @@ fn asset() {
 fn block_id() {
     let string = "048865fb643bca3b644647177f0cf363f7956794d0a7ec3bc6d29d93d9637308";
 
-    let block_id_bytes = hex::decode(string).unwrap();
-    let block_id = BlockId::try_from(block_id_bytes.as_slice()).unwrap();
+    let block_id = BlockId::from_str(string).unwrap();
 
     assert_eq!(block_id.block_num().to_string(), "76047867");
     assert_eq!(block_id.block_num(), 76047867);

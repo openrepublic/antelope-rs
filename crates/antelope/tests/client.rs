@@ -1,13 +1,12 @@
 use std::str::FromStr;
 use antelope::api::v1::structs::{ChainAPIError, ErrorResponse, SendTransactionResponse, TransactionState};
-use antelope::chain::block_id::BlockId;
 use antelope::chain::time::TimePoint;
 use antelope::{
     api::{
         client::APIClient,
         v1::structs::GetTableRowsParams,
     },
-    chain::{asset::Asset, checksum::Checksum256, name::Name},
+    chain::{asset::Asset, checksum::{Checksum256, BlockId}, name::Name},
     name,
     serializer::{Decoder, Encoder, Packer, PackerError},
     StructPacker,
@@ -40,7 +39,7 @@ async fn chain_get_info() {
             .expect("Invalid hex for last_irreversible_block_id");
     let last_irreversible_block_id_bytes: [u8; 32] = last_irreversible_block_id_bytes_vec.try_into().unwrap();
     assert_eq!(
-        result_unwrapped.last_irreversible_block_id.0.data, last_irreversible_block_id_bytes,
+        result_unwrapped.last_irreversible_block_id.data, last_irreversible_block_id_bytes,
         "last_irreversible_block_id does not match"
     );
 
@@ -49,7 +48,7 @@ async fn chain_get_info() {
             .expect("Invalid hex for head_block_id");
     let head_block_id_bytes: [u8; 32] = head_block_id_bytes_vec.try_into().unwrap();
     assert_eq!(
-        result_unwrapped.head_block_id.0.data, head_block_id_bytes,
+        result_unwrapped.head_block_id.data, head_block_id_bytes,
         "head_block_id does not match"
     );
 

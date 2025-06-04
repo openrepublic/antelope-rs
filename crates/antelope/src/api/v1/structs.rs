@@ -15,8 +15,7 @@ use crate::chain::{
     action::{Action, PermissionLevel},
     asset::{deserialize_asset, deserialize_optional_asset, Asset},
     authority::Authority,
-    block_id::{deserialize_block_id, deserialize_optional_block_id, BlockId},
-    checksum::{deserialize_checksum256, Checksum160, Checksum256},
+    checksum::{deserialize_checksum256, deserialize_blockid, deserialize_optional_blockid, Checksum160, Checksum256, BlockId},
     name::{deserialize_name, deserialize_optional_name, deserialize_vec_name, Name},
     signature::deserialize_signature,
     time::{deserialize_optional_timepoint, deserialize_timepoint, TimePoint, TimePointSec},
@@ -91,9 +90,9 @@ pub struct GetInfoResponse {
     pub chain_id: Checksum256,
     pub head_block_num: u32,
     pub last_irreversible_block_num: u32,
-    #[serde(deserialize_with = "deserialize_block_id")]
+    #[serde(deserialize_with = "deserialize_blockid")]
     pub last_irreversible_block_id: BlockId,
-    #[serde(deserialize_with = "deserialize_block_id")]
+    #[serde(deserialize_with = "deserialize_blockid")]
     pub head_block_id: BlockId,
     #[serde(deserialize_with = "deserialize_timepoint")]
     pub head_block_time: TimePoint,
@@ -105,7 +104,7 @@ pub struct GetInfoResponse {
     pub block_net_limit: u64,
     pub server_version_string: Option<String>,
     pub fork_db_head_block_num: Option<u32>,
-    #[serde(deserialize_with = "deserialize_optional_block_id")]
+    #[serde(deserialize_with = "deserialize_optional_blockid")]
     pub fork_db_head_block_id: Option<BlockId>,
     pub server_full_version_string: String,
     #[serde(deserialize_with = "deserialize_number_or_string")]
@@ -125,7 +124,7 @@ impl GetInfoResponse {
 
         // Destructure the array; the compiler guarantees it is 32 bytes long.
         let [_, _, _, _, _, _, _, _, b8, b9, b10, b11, ..] =
-            self.last_irreversible_block_id.0.data;
+            self.last_irreversible_block_id.data;
 
         // Native-endian;
         let ref_block_prefix = u32::from_ne_bytes([b8, b9, b10, b11]);
@@ -323,23 +322,23 @@ pub enum TransactionState {
 pub struct GetTransactionStatusResponse {
     pub state: TransactionState,
     pub block_number: Option<u32>,
-    #[serde(deserialize_with = "deserialize_optional_block_id", default)]
+    #[serde(deserialize_with = "deserialize_optional_blockid", default)]
     pub block_id: Option<BlockId>,
     #[serde(deserialize_with = "deserialize_optional_timepoint", default)]
     pub block_timestamp: Option<TimePoint>,
     #[serde(deserialize_with = "deserialize_optional_timepoint", default)]
     pub expiration: Option<TimePoint>,
     pub head_number: u32,
-    #[serde(deserialize_with = "deserialize_block_id")]
+    #[serde(deserialize_with = "deserialize_blockid")]
     pub head_id: BlockId,
     #[serde(deserialize_with = "deserialize_timepoint")]
     pub head_timestamp: TimePoint,
     pub irreversible_number: u32,
-    #[serde(deserialize_with = "deserialize_block_id")]
+    #[serde(deserialize_with = "deserialize_blockid")]
     pub irreversible_id: BlockId,
     #[serde(deserialize_with = "deserialize_timepoint")]
     pub irreversible_timestamp: TimePoint,
-    #[serde(deserialize_with = "deserialize_block_id")]
+    #[serde(deserialize_with = "deserialize_blockid")]
     pub earliest_tracked_block_id: BlockId,
     pub earliest_tracked_block_number: u32,
 }
@@ -772,7 +771,7 @@ pub struct GetBlockResponse {
     #[serde(deserialize_with = "deserialize_name")]
     pub producer: Name,
     pub confirmed: u16,
-    #[serde(deserialize_with = "deserialize_block_id")]
+    #[serde(deserialize_with = "deserialize_blockid")]
     pub previous: BlockId,
     #[serde(deserialize_with = "deserialize_checksum256")]
     pub transaction_mroot: Checksum256,
@@ -786,7 +785,7 @@ pub struct GetBlockResponse {
     pub producer_signature: Signature,
     pub transactions: Vec<GetBlockResponseTransactionReceipt>,
     pub block_extensions: Option<Vec<BlockExtension>>,
-    #[serde(deserialize_with = "deserialize_block_id")]
+    #[serde(deserialize_with = "deserialize_blockid")]
     pub id: BlockId,
     pub block_num: u32,
     pub ref_block_prefix: u32,

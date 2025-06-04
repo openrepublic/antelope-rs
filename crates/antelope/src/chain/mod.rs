@@ -4,7 +4,6 @@ pub mod asset;
 pub mod authority;
 pub mod binary_extension;
 pub mod blob;
-pub mod block_id;
 pub mod checksum;
 pub mod key_type;
 pub mod name;
