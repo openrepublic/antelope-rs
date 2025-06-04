@@ -3,8 +3,6 @@ use std::fmt::{Debug, Display, Formatter};
 use std::str::FromStr;
 
 use ecdsa::RecoveryId;
-use k256::Secp256k1;
-use p256::NistP256;
 use serde::{
     de::{self, Visitor},
     Deserialize, Deserializer, Serialize,
@@ -25,7 +23,7 @@ use crate::{
     crypto::{recover::recover_message, verify::verify_message},
     util::slice_copy
 };
-use crate::serializer::{Encoder, Packer, PackerError};
+use crate::serializer::{Decoder, Encoder, Packer, PackerError};
 
 #[derive(Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Signature {
@@ -56,64 +54,29 @@ impl Signature {
         recover_message(self, message)
     }
 
-    pub fn from_bytes(bytes: Vec<u8>, key_type: KeyType) -> Self {
-        Signature { key_type, value: bytes }
-    }
-
     pub fn is_canonical(r: &[u8], s: &[u8]) -> bool {
         !((r[0] & 0x80 != 0)
             || (s[0] & 0x80 != 0)
             || (r[0] == 0 && (r[1] & 0x80) == 0)
             || (s[0] == 0 && (s[1] & 0x80) == 0))
     }
+}
 
-    pub fn from_k1_signature(
-        sig: ecdsa::Signature<Secp256k1>,
-        recovery: RecoveryId,
-    ) -> Result<Self, String> {
-        let mut data = Vec::with_capacity(65);
-        let recid = recovery.to_byte() + Self::RECOVERY_ID_ADDITION;
-        let r = sig.r().to_bytes();
-        let s = sig.s().to_bytes();
-
-        if r.len() != 32 || s.len() != 32 {
-            return Err("r and s values should both have a size of 32".into());
-        }
-        if !Self::is_canonical(&r, &s) {
-            return Err("Signature values are not canonical".into());
-        }
-
-        data.push(recid);
-        data.extend_from_slice(&r);
-        data.extend_from_slice(&s);
-
-        Ok(Signature {
-            key_type: KeyType::K1,
-            value: data,
-        })
+impl From<(Vec<u8>, KeyType)> for Signature {
+    fn from(value: (Vec<u8>, KeyType)) -> Self {
+        let (value, key_type) = value;
+        Signature { key_type, value }
     }
+}
 
-    pub fn from_r1_signature(
-        sig: ecdsa::Signature<NistP256>,
-        recovery: RecoveryId,
-    ) -> Result<Self, String> {
-        let mut data = Vec::with_capacity(65);
-        let recid = recovery.to_byte();
-        let r = sig.r().to_bytes();
-        let s = sig.s().to_bytes();
+impl TryFrom<&[u8]> for Signature {
+    type Error = PackerError;
 
-        if r.len() != 32 || s.len() != 32 {
-            return Err("r and s values should both have a size of 32".into());
-        }
-
-        data.push(recid);
-        data.extend_from_slice(&r);
-        data.extend_from_slice(&s);
-
-        Ok(Signature {
-            key_type: KeyType::R1,
-            value: data,
-        })
+    fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
+        let mut dec = Decoder::new(data);
+        let mut sig = Signature::default();
+        dec.unpack(&mut sig)?;
+        Ok(sig)
     }
 }
 
@@ -135,6 +98,58 @@ impl FromStr for Signature {
         let value = base58::decode_ripemd160_check(payload, size, Some(key_type), false)
             .map_err(|e| e.to_string())?;
         Ok(Signature { key_type, value })
+    }
+}
+
+impl TryFrom<(ecdsa::Signature<k256::Secp256k1>, RecoveryId)> for Signature {
+    type Error = String;
+    fn try_from(value: (ecdsa::Signature<k256::Secp256k1>, RecoveryId)) -> Result<Self, Self::Error> {
+        let (signature, recovery) = value;
+        let r = signature.r().to_bytes().to_vec();
+        let s = signature.s().to_bytes().to_vec();
+        let mut data: Vec<u8> = Vec::new();
+        let recid = recovery.to_byte() + Signature::RECOVERY_ID_ADDITION;
+
+        if r.len() != 32 || s.len() != 32 {
+            return Err(String::from("r and s values should both have a size of 32"));
+        }
+
+        if !Signature::is_canonical(&r, &s) {
+            return Err(String::from("Signature values are not canonical"));
+        }
+
+        data.push(recid);
+        data.extend(r.to_vec());
+        data.extend(s.to_vec());
+
+        Ok(Signature {
+            key_type: KeyType::K1,
+            value: data,
+        })
+    }
+}
+
+impl TryFrom<(ecdsa::Signature<p256::NistP256>, RecoveryId)> for Signature {
+    type Error = String;
+    fn try_from(value: (ecdsa::Signature<p256::NistP256>, RecoveryId)) -> Result<Self, Self::Error> {
+        let (signature, recovery) = value;
+        let r = signature.r().to_bytes().to_vec();
+        let s = signature.s().to_bytes().to_vec();
+        let mut data: Vec<u8> = Vec::new();
+        let recid = recovery.to_byte();
+
+        if r.len() != 32 || s.len() != 32 {
+            return Err(String::from("r and s values should both have a size of 32"));
+        }
+
+        data.push(recid);
+        data.extend(r.to_vec());
+        data.extend(s.to_vec());
+
+        Ok(Signature {
+            key_type: KeyType::R1,
+            value: data,
+        })
     }
 }
 

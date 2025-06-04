@@ -680,7 +680,7 @@ fn transaction_signature_verification() {
         assert_eq!(signing_digest, expected_signing_digest);
 
         // Decode the signature
-        let signature = Signature::from_bytes(encoded_signature.to_vec(), KeyType::K1);
+        let signature = Signature::try_from((encoded_signature.to_vec(), KeyType::K1)).unwrap();
         println!("Expected signature: {}", signature);
         assert_eq!(signature.to_string(), "SIG_K1_JuSZfHNg6b68ag1znsoJvBARmqMR34AJ6KPpZMoiEFZ38paAqQpwiqjmen7yFkEefWNVWqjD3pCJrAntXXDLkNkpxe8Uyf");
 

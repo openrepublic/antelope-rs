@@ -59,7 +59,7 @@ pub fn sign(
                 let s = sig.s().to_bytes().to_vec();
 
                 if Signature::is_canonical(&r, &s) {
-                    return Signature::from_k1_signature(sig, recid)
+                    return Signature::try_from((sig, recid))
                         .map_err(SignError::SignatureBuild);
                 }
 
@@ -83,7 +83,7 @@ pub fn sign(
             let digest = Sha256::new().chain_update(message);
             let (sig, recid) = signing_key.sign_digest(digest);
 
-            Signature::from_r1_signature(sig, recid)
+            Signature::try_from((sig, recid))
                 .map_err(SignError::SignatureBuild)
         }
         KeyType::WA => Err(SignError::UnsupportedKeyType),
