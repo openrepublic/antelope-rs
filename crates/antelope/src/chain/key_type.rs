@@ -11,7 +11,7 @@ use crate::{
     serializer::{Encoder, Packer, PackerError},
 };
 
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialOrd, Ord, PartialEq, Eq, Serialize, Deserialize)]
 pub enum KeyType {
     #[default]
     K1,

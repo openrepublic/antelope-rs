@@ -1,5 +1,5 @@
 use core::fmt;
-use std::fmt::{Display, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use std::str::FromStr;
 
 use ecdsa::RecoveryId;
@@ -27,7 +27,7 @@ use crate::{
 };
 use crate::serializer::{Encoder, Packer, PackerError};
 
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Signature {
     pub key_type: KeyType,
     pub value: Vec<u8>,
@@ -54,15 +54,6 @@ impl Signature {
 
     pub fn recover_message(&self, message: &[u8]) -> Result<PublicKey, RecoverMessageError> {
         recover_message(self, message)
-    }
-
-    pub fn as_string(&self) -> String {
-        let type_str = self.key_type.to_string();
-        let encoded = encode_ripemd160_check(
-            self.value.to_vec(),
-            Some(type_str.as_str()),
-        );
-        format!("SIG_{type_str}_{encoded}")
     }
 
     pub fn from_bytes(bytes: Vec<u8>, key_type: KeyType) -> Self {
@@ -149,7 +140,18 @@ impl FromStr for Signature {
 
 impl Display for Signature {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.as_string())
+        let type_str = self.key_type.to_string();
+        let encoded = encode_ripemd160_check(
+            self.value.to_vec(),
+            Some(type_str.as_str()),
+        );
+        write!(f, "SIG_{type_str}_{encoded}")
+    }
+}
+
+impl Debug for Signature {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{self}")
     }
 }
 

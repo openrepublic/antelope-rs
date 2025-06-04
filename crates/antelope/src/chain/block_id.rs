@@ -1,9 +1,10 @@
 use crate::serializer::{Encoder, Packer, PackerError};
+use hex::encode;
 use serde::de::{self, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
-use std::fmt::{self, Display, Formatter};
+use std::fmt::{self, Debug, Display, Formatter};
 
-#[derive(Clone, Copy, Eq, PartialEq, Serialize, Deserialize, Debug, Default)]
+#[derive(Clone, Copy, Eq, PartialEq, Serialize, Deserialize, Default)]
 pub struct BlockId {
     pub bytes: [u8; 32],
 }
@@ -24,10 +25,6 @@ impl BlockId {
             | (u32::from(b) << 16)
             | (u32::from(c) << 8)
             | u32::from(d)
-    }
-
-    pub fn as_string(&self) -> String {
-        self.block_num().to_string()
     }
 }
 
@@ -51,7 +48,13 @@ impl Packer for BlockId {
 
 impl Display for BlockId {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        self.as_string().fmt(f)
+        write!(f, "{}", encode(self.bytes))
+    }
+}
+
+impl Debug for BlockId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}: {self}", self.block_num())
     }
 }
 

@@ -20,18 +20,6 @@ pub struct PrivateKey {
 }
 
 impl PrivateKey {
-    // TODO: should this be done via the ToString trait?
-    //   If so, should other structs also do that?
-    //   Also if so, should from on this and other structs use the From trait?
-    pub fn as_string(&self) -> String {
-        let type_str = self.key_type.to_string();
-        let encoded = encode_ripemd160_check(
-            self.value.to_vec(),
-            Option::from(self.key_type.to_string().as_str()),
-        );
-        format!("PVT_{type_str}_{encoded}")
-    }
-
     pub fn to_bytes(&self) -> Vec<u8> {
         self.value.to_vec()
     }
@@ -92,13 +80,18 @@ impl PrivateKey {
 
 impl Display for PrivateKey {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.as_string())
+        let type_str = self.key_type.to_string();
+        let encoded = encode_ripemd160_check(
+            self.value.to_vec(),
+            Option::from(self.key_type.to_string().as_str()),
+        );
+        write!(f, "PVT_{type_str}_{encoded}")
     }
 }
 
 impl Debug for PrivateKey {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.as_string())
+        write!(f, "{self}")
     }
 }
 

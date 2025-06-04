@@ -1,13 +1,13 @@
 use crate::{base58::{decode_public_key, encode_ripemd160_check}, chain::key_type::KeyType, crypto::get_public::get_public, define_error, util::bytes_to_hex};
 use serde::{Deserialize, Deserializer, Serialize};
-use std::fmt;
+use std::fmt::{self, Debug};
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 use crate::serializer::{Decoder, Encoder, Packer, PackerError};
 
 use super::private_key::PrivateKey;
 
-#[derive(Clone, Debug, Eq, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Clone, Eq, PartialEq, PartialOrd, Ord, Default, Serialize, Deserialize)]
 pub struct PublicKey {
     pub key_type: KeyType,
     pub value: Vec<u8>,
@@ -42,15 +42,6 @@ impl Packer for PublicKey {
 }
 
 impl PublicKey {
-    pub fn as_string(&self) -> String {
-        let type_str = self.key_type.to_string();
-        let encoded = encode_ripemd160_check(
-            self.value.to_vec(),
-            Option::from(self.key_type.to_string().as_str()),
-        );
-        format!("PUB_{type_str}_{encoded}")
-    }
-
     pub fn to_hex_string(&self) -> String {
         bytes_to_hex(&self.value.to_vec())
     }
@@ -103,19 +94,18 @@ impl TryFrom<&PrivateKey> for PublicKey {
 
 impl Display for PublicKey {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.as_string())
+        let type_str = self.key_type.to_string();
+        let encoded = encode_ripemd160_check(
+            self.value.to_vec(),
+            Option::from(type_str.as_str()),
+        );
+        write!(f, "PUB_{type_str}_{encoded}")
     }
 }
 
-impl PartialOrd for PublicKey {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for PublicKey {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.value.cmp(&other.value)
+impl Debug for PublicKey {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{self}")
     }
 }
 
