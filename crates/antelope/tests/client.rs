@@ -31,7 +31,7 @@ async fn chain_get_info() {
     assert_eq!(result_unwrapped.server_version, "6c1717c9".to_string());
     assert_eq!(
         result_unwrapped.chain_id,
-        Checksum256::from_hex("4667b205c6838ef70ff7988f6e8257e8be0e1284a2f59699054a018f743b1d11")
+        Checksum256::from_str("4667b205c6838ef70ff7988f6e8257e8be0e1284a2f59699054a018f743b1d11")
             .unwrap()
     );
 
@@ -40,7 +40,7 @@ async fn chain_get_info() {
             .expect("Invalid hex for last_irreversible_block_id");
     let last_irreversible_block_id_bytes: [u8; 32] = last_irreversible_block_id_bytes_vec.try_into().unwrap();
     assert_eq!(
-        result_unwrapped.last_irreversible_block_id.bytes, last_irreversible_block_id_bytes,
+        result_unwrapped.last_irreversible_block_id.0.data, last_irreversible_block_id_bytes,
         "last_irreversible_block_id does not match"
     );
 
@@ -49,7 +49,7 @@ async fn chain_get_info() {
             .expect("Invalid hex for head_block_id");
     let head_block_id_bytes: [u8; 32] = head_block_id_bytes_vec.try_into().unwrap();
     assert_eq!(
-        result_unwrapped.head_block_id.bytes, head_block_id_bytes,
+        result_unwrapped.head_block_id.0.data, head_block_id_bytes,
         "head_block_id does not match"
     );
 
@@ -369,7 +369,7 @@ pub async fn chain_get_transaction_status() {
     let response = client
         .v1_chain
         .get_transaction_status(
-            Checksum256::from_hex(
+            Checksum256::from_str(
                 "8c0803ae790dab82be21cf5cbfc0dddc9a3bc37a13e8cdfdb8e1325070260d05",
             )
             .unwrap(),
@@ -381,7 +381,7 @@ pub async fn chain_get_transaction_status() {
     assert_eq!(response.block_number, Some(75));
     assert_eq!(
         response.block_id,
-        BlockId::from_bytes(
+        BlockId::try_from(
             hex::decode("0000004b280bbfb8f03477c1ac6c9f2a42f7a8406f0339b50f535b649680fb51")
                 .unwrap()
                 .as_slice()
@@ -399,7 +399,7 @@ pub async fn chain_get_transaction_status() {
     assert_eq!(response.head_number, 164);
     assert_eq!(
         response.head_id,
-        BlockId::from_bytes(
+        BlockId::try_from(
             hex::decode("000000a446ce1758ec9d04aca27f21ee370bd9fe3e00c2e49f5aeb50f1a30347")
                 .unwrap()
                 .as_slice()
@@ -413,7 +413,7 @@ pub async fn chain_get_transaction_status() {
     assert_eq!(response.irreversible_number, 163);
     assert_eq!(
         response.irreversible_id,
-        BlockId::from_bytes(
+        BlockId::try_from(
             hex::decode("000000a3369447a5bcf4f9f2c0edd22afa515acdb3839fba45c3c1a165fdcaf8")
                 .unwrap()
                 .as_slice()
@@ -426,7 +426,7 @@ pub async fn chain_get_transaction_status() {
     );
     assert_eq!(
         response.earliest_tracked_block_id,
-        BlockId::from_bytes(
+        BlockId::try_from(
             hex::decode("0000004a259960be4e410f69ed3c4730ef0e5712500d3056ac25badc69ee0e57")
                 .unwrap()
                 .as_slice()
@@ -448,7 +448,7 @@ async fn test_get_transaction_status_locally_applied() {
     let response = client
         .v1_chain
         .get_transaction_status(
-            Checksum256::from_hex(
+            Checksum256::from_str(
                 "ed7cd6ad6298cbbf653963d8e1a5dc16ee4ca45fc8aaee6caa3663a56db55bbd",
             )
             .unwrap(),
@@ -473,7 +473,7 @@ async fn test_get_transaction_status_unknown() {
     let response = client
         .v1_chain
         .get_transaction_status(
-            Checksum256::from_hex(
+            Checksum256::from_str(
                 "01320dfb16105aa87973a2aac02297e0666f9d369970eb70a5c7e3d2cc50e9ff",
             )
             .unwrap(),

@@ -1,26 +1,59 @@
+use crate::define_error;
 use crate::serializer::{Encoder, Packer, PackerError};
-use hex::encode;
 use serde::de::{self, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
 use std::fmt::{self, Debug, Display, Formatter};
+use std::str::FromStr;
 
+use crate::chain::checksum::Checksum256;
+
+/// In the reference C++ impl block_id is an alias of checksum256, in order to make BlockId struct
+/// easy to change in the future we use a single item tuple struct
 #[derive(Clone, Copy, Eq, PartialEq, Serialize, Deserialize, Default)]
-pub struct BlockId {
-    pub bytes: [u8; 32],
+pub struct BlockId(pub Checksum256);
+
+impl From<Checksum256> for BlockId {
+    fn from(value: Checksum256) -> Self {
+        BlockId(value)
+    }
+}
+
+impl From<BlockId> for Checksum256 {
+    fn from(value: BlockId) -> Self {
+        value.0
+    }
+}
+
+impl From<[u8; 32]> for BlockId {
+    fn from(value: [u8; 32]) -> Self {
+        Checksum256::from(value).into()
+    }
+}
+
+impl TryFrom<&[u8]> for BlockId {
+    type Error = PackerError;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        Checksum256::try_from(value)
+            .map(|sum| sum.into())
+    }
+}
+
+define_error!(BlockIdParseError);
+
+impl FromStr for BlockId {
+    type Err = BlockIdParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Checksum256::from_str(s)
+            .map(|sum| sum.into())
+            .map_err(|e| BlockIdParseError::new(e.to_string()))
+    }
 }
 
 impl BlockId {
-    pub fn from_bytes(src: &[u8]) -> Result<Self, String> {
-        if src.len() != 32 {
-            return Err("BlockId.from_bytes expected 32 bytes".into());
-        }
-        let mut bytes = [0u8; 32];
-        bytes.copy_from_slice(src);
-        Ok(Self { bytes })
-    }
-
     pub fn block_num(&self) -> u32 {
-        let [a, b, c, d, ..] = self.bytes;
+        let [a, b, c, d, ..] = self.0.data;
         (u32::from(a) << 24)
             | (u32::from(b) << 16)
             | (u32::from(c) << 8)
@@ -31,24 +64,21 @@ impl BlockId {
 impl Packer for BlockId {
 
     fn size(&self) -> usize {
-        32
+        self.0.size()
     }
 
     fn pack(&self, enc: &mut Encoder) -> usize {
-        let buf = enc.alloc(32);
-        buf.copy_from_slice(&self.bytes);
-        32
+        self.0.pack(enc)
     }
 
     fn unpack(&mut self, data: &[u8]) -> Result<usize, PackerError> {
-        self.bytes.copy_from_slice(data);
-        Ok(32)
+        self.0.unpack(data)
     }
 }
 
 impl Display for BlockId {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", encode(self.bytes))
+        write!(f, "{}", self.0)
     }
 }
 
@@ -70,20 +100,12 @@ where
             f.write_str("64-char hex string for BlockId")
         }
 
-        fn visit_str<E>(self, v: &str) -> Result<BlockId, E>
+        fn visit_str<E>(self, s: &str) -> Result<BlockId, E>
         where
             E: de::Error,
         {
-            if v.len() != 64 {
-                return Err(E::custom("hex length must be 64"));
-            }
-            let mut bytes = [0u8; 32];
-            for i in 0..32 {
-                let b = u8::from_str_radix(&v[i * 2..i * 2 + 2], 16)
-                    .map_err(|_| E::custom("invalid hex"))?;
-                bytes[i] = b;
-            }
-            Ok(BlockId { bytes })
+            BlockId::from_str(s)
+                .map_err(|e| de::Error::custom(e.to_string()))
         }
     }
 
@@ -98,15 +120,8 @@ where
 {
     let opt: Option<String> = Option::deserialize(d)?;
     opt.map(|s| {
-        if s.len() != 64 {
-            return Err(serde::de::Error::custom("hex length must be 64"));
-        }
-        let mut bytes = [0u8; 32];
-        for i in 0..32 {
-            bytes[i] = u8::from_str_radix(&s[i * 2..i * 2 + 2], 16)
-                .map_err(|_| serde::de::Error::custom("invalid hex"))?;
-        }
-        Ok(BlockId { bytes })
+        BlockId::from_str(&s)
+            .map_err(|e| de::Error::custom(e.to_string()))
     })
     .transpose()
 }

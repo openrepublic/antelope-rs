@@ -277,7 +277,7 @@ impl<T: Provider> ChainAPI<T> {
                 )),
                 Some(TableIndexType::CHECKSUM160(_)) => Some(
                     TableIndexType::CHECKSUM160(
-                        Checksum160::from_bytes(
+                        Checksum160::try_from(
                             decode(&next_key_str)
                                 .map_err(|e| ChainAPIError::Parse(e.to_string()))?
                                 .as_slice(),
@@ -287,7 +287,7 @@ impl<T: Provider> ChainAPI<T> {
                 ),
                 Some(TableIndexType::CHECKSUM256(_)) => Some(
                     TableIndexType::CHECKSUM256(
-                        Checksum256::from_bytes(
+                        Checksum256::try_from(
                             decode(&next_key_str)
                                 .map_err(|e| ChainAPIError::Parse(e.to_string()))?
                                 .as_slice(),

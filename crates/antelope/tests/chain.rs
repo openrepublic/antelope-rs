@@ -112,7 +112,7 @@ fn block_id() {
     let string = "048865fb643bca3b644647177f0cf363f7956794d0a7ec3bc6d29d93d9637308";
 
     let block_id_bytes = hex::decode(string).unwrap();
-    let block_id = BlockId::from_bytes(&block_id_bytes).unwrap();
+    let block_id = BlockId::try_from(block_id_bytes.as_slice()).unwrap();
 
     assert_eq!(block_id.block_num().to_string(), "76047867");
     assert_eq!(block_id.block_num(), 76047867);
@@ -559,7 +559,7 @@ fn transaction_signing_data_and_digest() {
         }],
         extension: vec![],
     };
-    let chain_id = Checksum256::from_bytes(
+    let chain_id = Checksum256::try_from(
         hex_to_bytes("2a02a0053e5a8cf73a56ba0fda11e4d92e0238a4a2aa74fccf46d5a910746840").as_slice(),
     )
     .unwrap();

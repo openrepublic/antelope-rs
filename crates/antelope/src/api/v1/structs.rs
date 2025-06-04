@@ -125,7 +125,7 @@ impl GetInfoResponse {
 
         // Destructure the array; the compiler guarantees it is 32 bytes long.
         let [_, _, _, _, _, _, _, _, b8, b9, b10, b11, ..] =
-            self.last_irreversible_block_id.bytes;
+            self.last_irreversible_block_id.0.data;
 
         // Native-endian;
         let ref_block_prefix = u32::from_ne_bytes([b8, b9, b10, b11]);
