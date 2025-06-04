@@ -925,14 +925,14 @@ fn authority() {
         threshold: 21,
         keys: vec![
             KeyWeight {
-                key: PublicKey::new_from_str(
+                key: PublicKey::from_str(
                     "EOS6RrvujLQN1x5Tacbep1KAk8zzKpSThAQXBCKYFfGUYeABhJRin",
                 )
                 .unwrap(),
                 weight: 20,
             },
             KeyWeight {
-                key: PublicKey::new_from_str(
+                key: PublicKey::from_str(
                     "PUB_R1_82ua5qburg82c9eWY1qZVNUAAD6VPHsTMoPMGDrk7s4BQgxEoc",
                 )
                 .unwrap(),

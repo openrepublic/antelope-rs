@@ -1,6 +1,6 @@
 use std::{
     convert::TryFrom,
-    fmt::{Display, Formatter},
+    fmt::{Display, Formatter, LowerHex},
     str::FromStr,
 };
 use serde::{Deserialize, Serialize};
@@ -62,6 +62,12 @@ impl Display for KeyType {
             KeyType::R1 => "R1",
             KeyType::WA => "WA",
         })
+    }
+}
+
+impl LowerHex for KeyType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:x}", self.to_index())
     }
 }
 

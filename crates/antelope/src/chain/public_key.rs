@@ -1,6 +1,7 @@
-use crate::{base58::{decode_public_key, encode_ripemd160_check}, chain::key_type::KeyType, crypto::get_public::get_public, define_error, util::bytes_to_hex};
+use crate::{base58::{decode_public_key, encode_ripemd160_check}, chain::key_type::KeyType, crypto::get_public::get_public, define_error};
+use hex::encode;
 use serde::{Deserialize, Deserializer, Serialize};
-use std::fmt::{self, Debug};
+use std::fmt::{self, Debug, LowerHex};
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 use crate::serializer::{Decoder, Encoder, Packer, PackerError};
@@ -42,10 +43,6 @@ impl Packer for PublicKey {
 }
 
 impl PublicKey {
-    pub fn to_hex_string(&self) -> String {
-        bytes_to_hex(&self.value.to_vec())
-    }
-
     pub fn to_legacy_string(&self, prefix: Option<&str>) -> Result<String, String> {
         let key_prefix = prefix.unwrap_or("EOS");
         if !matches!(self.key_type, KeyType::K1) {
@@ -54,14 +51,23 @@ impl PublicKey {
         let encoded = encode_ripemd160_check(self.value.to_vec(), None);
         Ok(format!("{key_prefix}{encoded}"))
     }
+}
 
-    pub fn new_from_str(value: &str) -> Result<Self, String> {
-        PublicKey::from_str(value)
-            .map_err(|e| e.to_string())
-    }
-
-    pub fn from_bytes(value: Vec<u8>, key_type: KeyType) -> Self {
+impl From<(Vec<u8>, KeyType)> for PublicKey {
+    fn from(value: (Vec<u8>, KeyType)) -> Self {
+        let (value, key_type) = value;
         PublicKey { key_type, value }
+    }
+}
+
+impl TryFrom<&[u8]> for PublicKey {
+    type Error = PackerError;
+
+    fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
+        let mut dec = Decoder::new(data);
+        let mut key = PublicKey::default();
+        dec.unpack(&mut key)?;
+        Ok(key)
     }
 }
 
@@ -88,7 +94,7 @@ impl TryFrom<&PrivateKey> for PublicKey {
         let compressed = get_public(k.value.clone(), k.key_type)
             .map_err(PublicKeyParsingError::new)?;
 
-        Ok(PublicKey::from_bytes(compressed, k.key_type))
+        Ok(PublicKey::from((compressed, k.key_type)))
     }
 }
 
@@ -100,6 +106,12 @@ impl Display for PublicKey {
             Option::from(type_str.as_str()),
         );
         write!(f, "PUB_{type_str}_{encoded}")
+    }
+}
+
+impl LowerHex for PublicKey {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", encode(&self.value))
     }
 }
 
@@ -126,10 +138,8 @@ where
         where
             E: serde::de::Error,
         {
-            match PublicKey::new_from_str(value) {
-                Ok(pub_key) => Ok(pub_key),
-                Err(err) => Err(E::custom(err)),
-            }
+            PublicKey::from_str(value)
+                .map_err(E::custom)
         }
     }
 

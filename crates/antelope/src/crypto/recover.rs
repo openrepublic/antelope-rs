@@ -42,7 +42,7 @@ pub fn recover_message(
             ).ok_or(RecoverMessageError::InvalidRecoveryId)?;
             let vk = k256::ecdsa::VerifyingKey::recover_from_digest(digest, &sig, rid)?;
             let bytes = vk.to_encoded_point(true).as_bytes().to_vec();
-            Ok(PublicKey::from_bytes(bytes, KeyType::K1))
+            Ok(PublicKey::from((bytes, KeyType::K1)))
         }
         KeyType::R1 => {
             let r = create_r1_field_bytes(&signature.r());
@@ -53,7 +53,7 @@ pub fn recover_message(
                 .ok_or(RecoverMessageError::InvalidRecoveryId)?;
             let vk = p256::ecdsa::VerifyingKey::recover_from_digest(digest, &sig, rid)?;
             let bytes = vk.to_encoded_point(true).as_bytes().to_vec();
-            Ok(PublicKey::from_bytes(bytes, KeyType::R1))
+            Ok(PublicKey::from((bytes, KeyType::R1)))
         }
         KeyType::WA => Err(RecoverMessageError::UnsupportedKeyType),
     }
