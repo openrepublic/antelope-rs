@@ -1,4 +1,4 @@
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::{Debug, Display, Formatter, LowerHex};
 use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
@@ -20,14 +20,6 @@ pub struct PrivateKey {
 }
 
 impl PrivateKey {
-    pub fn to_bytes(&self) -> Vec<u8> {
-        self.value.to_vec()
-    }
-
-    pub fn to_hex(&self) -> String {
-        hex::encode(&self.value)
-    }
-
     pub fn to_wif(&self) -> Result<String, String> {
         if !matches!(self.key_type, KeyType::K1) {
             return Err(String::from("Unable to generate WIF for non-k1 key"));
@@ -41,13 +33,6 @@ impl PrivateKey {
 
     pub fn to_public(&self) -> Result<PublicKey, PublicKeyParsingError> {
         PublicKey::try_from(self)
-    }
-
-    pub fn from_bytes(bytes: Vec<u8>, key_type: KeyType) -> Self {
-        PrivateKey {
-            key_type,
-            value: bytes,
-        }
     }
 
     /// # Safety
@@ -68,13 +53,29 @@ impl PrivateKey {
 
     pub fn shared_secret(&self, their_pub: &PublicKey) -> Result<Checksum512, SharedSecretError> {
         Ok(Checksum512::hash(
-            shared_secret(&self.to_bytes(), &their_pub.value, self.key_type)?
+            shared_secret(&self.value, &their_pub.value, self.key_type)?
         ))
     }
 
     pub fn random(key_type: KeyType) -> Result<Self, String> {
         let secret_bytes = generate(key_type)?;
-        Ok(Self::from_bytes(secret_bytes[1..].to_vec(), key_type))
+        Ok(Self::from((secret_bytes[1..].to_vec(), key_type)))
+    }
+}
+
+impl From<(Vec<u8>, KeyType)> for PrivateKey {
+    fn from(value: (Vec<u8>, KeyType)) -> Self {
+        let (value, key_type) = value;
+        PrivateKey { key_type, value }
+    }
+}
+
+impl TryFrom<&[u8]> for PrivateKey {
+    type Error = String;
+
+    fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
+        let key_type = KeyType::try_from(data[0])?;
+        Ok(PrivateKey::from((data[1..].to_vec(), key_type)))
     }
 }
 
@@ -86,6 +87,12 @@ impl Display for PrivateKey {
             Option::from(self.key_type.to_string().as_str()),
         );
         write!(f, "PVT_{type_str}_{encoded}")
+    }
+}
+
+impl LowerHex for PrivateKey {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", hex::encode(&self.value))
     }
 }
 

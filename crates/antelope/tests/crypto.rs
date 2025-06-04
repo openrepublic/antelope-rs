@@ -22,7 +22,7 @@ fn private_key_encoding() {
         "PVT_K1_2be6BwD56MHeVD4P95bRLdnP3oB3P4QRAXAsSKh4N8Xu6d4Aux"
     );
     assert_eq!(
-        k1_key.to_hex(),
+        format!("{k1_key:x}"),
         "d25968ebfce6e617bdb839b5a66cfc1fdd051d79a91094f7baceded449f84333"
     );
 
