@@ -415,7 +415,7 @@ where
     deserializer.deserialize_option(Visitor)
 }
 
-#[derive(Copy, Clone, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ExtendedAsset {
     pub quantity: Asset,
     pub contract: Name,
