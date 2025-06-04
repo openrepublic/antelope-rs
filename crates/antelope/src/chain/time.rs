@@ -27,6 +27,13 @@ pub struct TimePoint {
     pub elapsed: u64,
 }
 
+impl From<u64> for TimePoint {
+    #[inline]
+    fn from(elapsed: u64) -> Self {
+        TimePoint { elapsed }
+    }
+}
+
 impl FromStr for TimePoint {
     type Err = TimeError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -68,6 +75,13 @@ pub struct TimePointSec {
     pub seconds: u32,
 }
 
+impl From<u32> for TimePointSec {
+    #[inline]
+    fn from(seconds: u32) -> Self {
+        TimePointSec { seconds }
+    }
+}
+
 impl FromStr for TimePointSec {
     type Err = TimeError;
     fn from_str(s: &str) -> Result<Self, Self::Err> { Self::from_timestamp(s) }
@@ -105,6 +119,13 @@ impl Packer for TimePointSec {
 #[derive(Copy, Clone, Default, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct BlockTimestamp {
     pub slot: u32,
+}
+
+impl From<u32> for BlockTimestamp {
+    #[inline]
+    fn from(slot: u32) -> Self {
+        BlockTimestamp { slot }
+    }
 }
 
 impl FromStr for BlockTimestamp {
