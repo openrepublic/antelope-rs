@@ -1,6 +1,6 @@
 //! varint.rs – variable-length 32-bit integers (unsigned / signed)
 
-use std::{ops::{Add, Div, Mul, Sub}, str::FromStr};
+use std::{fmt::Display, ops::{Add, Div, Mul, Sub}, str::FromStr};
 
 use serde::{Deserialize, Serialize};
 
@@ -150,6 +150,12 @@ impl Div for VarUint32 {
     }
 }
 
+impl Display for VarUint32 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.n)
+    }
+}
+
 /// Signed LEB128-encoded 32-bit integer (zig-zag mapped).
 #[derive(Clone, Eq, PartialEq, Debug, Serialize, Deserialize)]
 pub struct VarInt32 {
@@ -266,6 +272,12 @@ impl Div for VarInt32 {
     type Output = Self;
     fn div(self, rhs: Self) -> Self::Output {
         VarInt32::from(self.n / rhs.n)
+    }
+}
+
+impl Display for VarInt32 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.n)
     }
 }
 
