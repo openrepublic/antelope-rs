@@ -227,11 +227,11 @@ impl Packer for Signature {
                 let mut offset = 1 + 65;
                 let mut auth_sz = VarUint32::default();
                 let n = auth_sz.unpack(&data[offset..])?;
-                offset += n + auth_sz.value() as usize;
+                offset += n + usize::from(auth_sz);
 
                 let mut client_sz = VarUint32::default();
                 let m = client_sz.unpack(&data[offset..])?;
-                offset += m + client_sz.value() as usize;
+                offset += m + usize::from(client_sz);
 
                 // capture everything after the key_type byte
                 self.value = data[1..offset].to_vec();

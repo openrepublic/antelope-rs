@@ -1,11 +1,11 @@
 use antelope::chain::checksum::Checksum256;
+use antelope::chain::float::Float128;
 use antelope::chain::name::Name;
 use antelope::chain::public_key::PublicKey;
 use antelope::chain::signature::Signature;
 use antelope::chain::varint::VarUint32;
 use antelope::serializer::{
     Decoder, Encoder, Packer, PackerError,
-    packer::Float128
 };
 use antelope::{EnumPacker, StructPacker};
 use serde::{Deserialize, Serialize};

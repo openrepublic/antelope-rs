@@ -1,5 +1,4 @@
 use core::mem::size_of;
-use serde::{Deserialize, Serialize};
 use crate::{chain::varint::VarUint32, define_error, util::slice_copy};
 
 define_error!(PackerError);
@@ -363,44 +362,11 @@ impl_packed!(u128);
 impl_packed!(f32);
 impl_packed!(f64);
 
-#[derive(Clone, Copy, Eq, PartialEq, Serialize, Deserialize, Debug, Default)]
-pub struct Float128 {
-    pub data: [u8; 16],
-}
-
-impl Float128 {
-    pub fn new(data: [u8; 16]) -> Self {
-        Self { data }
-    }
-
-    pub fn data(&self) -> &[u8; 16] {
-        &self.data
-    }
-}
-
-impl Packer for Float128 {
-    fn size(&self) -> usize {
-        16
-    }
-
-    fn pack(&self, enc: &mut Encoder) -> usize {
-        let data = enc.alloc(self.size());
-        slice_copy(data, &self.data);
-        self.size()
-    }
-
-    fn unpack(&mut self, raw: &[u8]) -> Result<usize, PackerError> {
-        check_unpack_len!(self, raw, 16);
-        slice_copy(&mut self.data, &raw[..16]);
-        Ok(16)
-    }
-}
-
 /// Implement `Packer` for `String` type.
 impl Packer for String {
     /// Returns the size of this value in bytes.
     fn size(&self) -> usize {
-        VarUint32::new(self.len() as u32).size() + self.len()
+        VarUint32::from(self.len()).size() + self.len()
     }
 
     /// Packs this value into the given encoder.
@@ -409,7 +375,7 @@ impl Packer for String {
 
         let raw = self.as_bytes();
 
-        let n = VarUint32::new(raw.len() as u32);
+        let n = VarUint32::from(raw.len());
         n.pack(enc);
 
         let data = enc.alloc(raw.len());
@@ -422,13 +388,13 @@ impl Packer for String {
     fn unpack(&mut self, data: &[u8]) -> Result<usize, PackerError> {
         // First 1 to 4 bytes is gonna be LEB128 encoded u32
         // with length of string
-        let mut length = VarUint32 { n: 0 };
-        let size = length.unpack(data)?;
+        let mut length = VarUint32::default();
+        let size: usize = length.unpack(data)?;
         // TODO: Non utf-8 strings will return error, but leap supports them?
         *self = String::from_utf8(
-            data[size..size + length.value() as usize].to_vec()
+            data[size..size + usize::from(&length)].to_vec()
         ).map_err(|e| packer_error!("{} while unpacking string", e.to_string()))?;
-        Ok(size + length.value() as usize)
+        Ok(size + usize::from(length))
     }
 }
 
@@ -447,15 +413,13 @@ where
         for i in self {
             size += i.size();
         }
-        VarUint32::new(size as u32).size() + size
+        VarUint32::from(size as u32).size() + size
     }
 
     /// Packs this value into the given encoder.
     fn pack(&self, enc: &mut Encoder) -> usize {
         let pos = enc.get_size();
-        let len = VarUint32 {
-            n: self.len() as u32,
-        };
+        let len = VarUint32::from(self.len());
         len.pack(enc);
         for v in self {
             v.pack(enc);
@@ -468,11 +432,11 @@ where
         // First 1 to 4 bytes is gonna be LEB128 encoded u32
         // with item length of vector
         let mut dec = Decoder::new(data);
-        let mut size = VarUint32 { n: 0 };
+        let mut size = VarUint32::default();
         dec.unpack(&mut size)?;
-        self.reserve(size.value() as usize);
+        self.reserve((&size).into());
         // Each item will be packed next to each other
-        for _ in 0..size.value() {
+        for _ in 0..usize::from(size) {
             let mut v: T = Default::default();
             dec.unpack(&mut v)?;
             self.push(v);

@@ -13,6 +13,7 @@ pub mod signature;
 pub mod time;
 pub mod transaction;
 pub mod varint;
+pub mod float;
 
 
 #[macro_export]

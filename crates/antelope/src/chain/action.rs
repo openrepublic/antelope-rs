@@ -148,8 +148,8 @@ impl Packer for Action {
         let mut size: usize;
         size = 16;
         size +=
-            VarUint32::new(self.authorization.len() as u32).size() + self.authorization.len() * 16;
-        size += VarUint32::new(self.data.len() as u32).size() + self.data.len();
+            VarUint32::from(self.authorization.len()).size() + self.authorization.len() * 16;
+        size += VarUint32::from(self.data.len()).size() + self.data.len();
         size
     }
 
