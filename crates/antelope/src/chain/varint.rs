@@ -4,7 +4,7 @@ use std::{ops::{Add, Div, Mul, Sub}, str::FromStr};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{define_error, serializer::{Encoder, Packer, PackerError}};
+use crate::{define_error, serializer::{Decoder, Encoder, Packer, PackerError}};
 
 /// Unsigned LEB128-encoded 32-bit integer.
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Serialize, Deserialize)]
@@ -75,6 +75,16 @@ impl FromStr for VarUint32 {
             u32::from_str(s)
                 .map_err(VarUint32ParseError::new)?
         ))
+    }
+}
+
+impl TryFrom<&[u8]> for VarUint32 {
+    type Error = PackerError;
+    fn try_from(raw: &[u8]) -> Result<Self, PackerError> {
+        let mut dec = Decoder::new(raw);
+        let mut f = Self::default();
+        dec.unpack(&mut f)?;
+        Ok(f)
     }
 }
 
@@ -194,6 +204,16 @@ impl FromStr for VarInt32 {
             i32::from_str(s)
                 .map_err(VarInt32ParseError::new)?
         ))
+    }
+}
+
+impl TryFrom<&[u8]> for VarInt32 {
+    type Error = PackerError;
+    fn try_from(raw: &[u8]) -> Result<Self, PackerError> {
+        let mut dec = Decoder::new(raw);
+        let mut f = Self::default();
+        dec.unpack(&mut f)?;
+        Ok(f)
     }
 }
 

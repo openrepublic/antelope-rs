@@ -6,7 +6,7 @@ use f128::f128;
 use serde::de::{Visitor, Error as DeError};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::serializer::{Encoder, Packer, PackerError};
+use crate::serializer::{Decoder, Encoder, Packer, PackerError};
 use crate::check_unpack_len;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -38,6 +38,16 @@ impl From<Float128> for f128 {
     #[inline]
     fn from(value: Float128) -> Self {
         value.f
+    }
+}
+
+impl TryFrom<&[u8]> for Float128 {
+    type Error = PackerError;
+    fn try_from(raw: &[u8]) -> Result<Float128, PackerError> {
+        let mut dec = Decoder::new(raw);
+        let mut f = Float128::default();
+        dec.unpack(&mut f)?;
+        Ok(f)
     }
 }
 
