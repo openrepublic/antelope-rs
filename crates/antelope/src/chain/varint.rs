@@ -7,18 +7,20 @@ use serde::{Deserialize, Serialize};
 use crate::{define_error, serializer::{Encoder, Packer, PackerError}};
 
 /// Unsigned LEB128-encoded 32-bit integer.
-#[derive(Clone, Eq, PartialEq, Debug, Serialize, Deserialize)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Serialize, Deserialize)]
 pub struct VarUint32 {
     pub n: u32,
-    buf: Vec<u8>,
+    buf: [u8; 5],
+    len: usize
 }
 
 impl From<u32> for VarUint32 {
     fn from(n: u32) -> Self {
         let mut val = n;
-        let mut buf = Vec::with_capacity(5);
+        let mut buf = [0; 5];
+        let mut len = 0usize;
         if val == 0 {
-            buf.push(0);
+            len = 1usize;
         } else {
             while val > 0 {
                 let mut b = (val & 0x7f) as u8;
@@ -26,10 +28,11 @@ impl From<u32> for VarUint32 {
                 if val > 0 {
                     b |= 0x80;
                 }
-                buf.push(b);
+                buf[len] = b;
+                len += 1;
             }
         }
-        Self { n, buf }
+        Self { n, buf, len }
     }
 }
 
@@ -77,18 +80,18 @@ impl FromStr for VarUint32 {
 
 impl Default for VarUint32 {
     fn default() -> Self {
-        0u32.into()
+        Self { n: 0, buf: [0; 5], len: 1}
     }
 }
 
 impl Packer for VarUint32 {
     fn size(&self) -> usize {
-        self.buf.len()
+        self.len
     }
 
     fn pack(&self, enc: &mut Encoder) -> usize {
-        enc.alloc(self.buf.len()).copy_from_slice(&self.buf);
-        self.buf.len()
+        enc.pack_raw(&self.buf[..self.len]);
+        self.len
     }
 
     fn unpack(&mut self, data: &[u8]) -> Result<usize, PackerError> {
@@ -141,7 +144,8 @@ impl Div for VarUint32 {
 #[derive(Clone, Eq, PartialEq, Debug, Serialize, Deserialize)]
 pub struct VarInt32 {
     pub n: i32,
-    buf: Vec<u8>,
+    buf: [u8; 5],
+    len: usize
 }
 
 impl VarInt32 {
@@ -159,7 +163,7 @@ impl VarInt32 {
 impl From<i32> for VarInt32 {
     fn from(n: i32) -> Self {
         let u: VarUint32 = Self::zz_enc(n).into();
-        Self { n, buf: u.buf }
+        Self { n, buf: u.buf, len: u.len }
     }
 }
 
@@ -195,18 +199,18 @@ impl FromStr for VarInt32 {
 
 impl Default for VarInt32 {
     fn default() -> Self {
-        0i32.into()
+        Self { n: 0, buf: [0; 5], len: 1}
     }
 }
 
 impl Packer for VarInt32 {
     fn size(&self) -> usize {
-        self.buf.len()
+        self.len
     }
 
     fn pack(&self, enc: &mut Encoder) -> usize {
-        enc.alloc(self.buf.len()).copy_from_slice(&self.buf);
-        self.buf.len()
+        enc.pack_raw(&self.buf[..self.len]);
+        self.len
     }
 
     fn unpack(&mut self, data: &[u8]) -> Result<usize, PackerError> {

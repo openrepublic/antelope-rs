@@ -256,6 +256,26 @@ impl Asset {
         Asset::try_from((diff, self.symbol))
             .map_err(|e| AssetOpError(e.to_string()))
     }
+
+    pub fn try_mul(&self, other: Asset) -> Result<Asset, AssetOpError> {
+        if self.symbol != other.symbol {
+            return Err(AssetOpError("symbol mismatch".into()));
+        }
+        let mul = self.amount.checked_mul(other.amount)
+            .ok_or_else(|| AssetOpError("addition overflow".into()))?;
+        Asset::try_from((mul, self.symbol))
+            .map_err(|e| AssetOpError(e.to_string()))
+    }
+
+    pub fn try_div(&self, other: Asset) -> Result<Asset, AssetOpError> {
+        if self.symbol != other.symbol {
+            return Err(AssetOpError("symbol mismatch".into()));
+        }
+        let div = self.amount.checked_div(other.amount)
+            .ok_or_else(|| AssetOpError("subtraction overflow".into()))?;
+        Asset::try_from((div, self.symbol))
+            .map_err(|e| AssetOpError(e.to_string()))
+    }
 }
 
 impl FromStr for Asset {
