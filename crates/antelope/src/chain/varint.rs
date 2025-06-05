@@ -157,7 +157,7 @@ impl Display for VarUint32 {
 }
 
 /// Signed LEB128-encoded 32-bit integer (zig-zag mapped).
-#[derive(Clone, Eq, PartialEq, Debug, Serialize, Deserialize)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Serialize, Deserialize)]
 pub struct VarInt32 {
     pub n: i32,
     buf: [u8; 5],
