@@ -65,17 +65,27 @@ impl Packer for Float128 {
 
     #[inline]
     fn pack(&self, enc: &mut Encoder) -> usize {
-        let bits: u128 = self.f.into();
-        enc.pack_raw(&bits.to_le_bytes());
+        enc.pack_raw(&self.f.into_inner());
         16
     }
 
     #[inline]
     fn unpack(&mut self, raw: &[u8]) -> Result<usize, PackerError> {
         check_unpack_len!(self, raw, 16);
-        let mut tmp = [0u8; 16];
-        tmp.copy_from_slice(&raw[..16]);
-        self.f = f128::from(u128::from_le_bytes(tmp));
+
+        let mut buf = [0u8; 16];
+        buf.copy_from_slice(&raw[..16]);
+
+        #[cfg(target_endian = "little")]
+        {
+            self.f = unsafe { std::mem::transmute::<[u8; 16], f128>(buf) };
+        }
+
+        #[cfg(target_endian = "big")]
+        {
+            self.f = f128::from(u128::from_le_bytes(buf));
+        }
+
         Ok(16)
     }
 }
