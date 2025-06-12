@@ -90,16 +90,36 @@ impl fmt::Display for TypeModifier {
     }
 }
 
+
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ABIResolvedType {
+    /// The exact token that the caller passed in (may include modifiers /
+    /// alias name / etc.)
     pub original_name: String,
+
+    /// The final concrete type name after chasing every alias
     pub resolved_name: String,
+
+    /// All the aliases we walked through ― outer-most first.
+    pub alias_chain: Vec<String>,
+
+    /// Kind flags
     pub is_std: bool,
-    pub is_alias: bool,
     pub is_struct: Option<AbiStruct>,
     pub is_variant: Option<AbiVariant>,
+
+    /// Modifiers collected *from every hop*, outer-first order
     pub modifiers: Vec<TypeModifier>,
 }
+
+impl ABIResolvedType {
+    /// Helper retained for existing callers (`var_meta.is_alias`)
+    #[inline]
+    pub fn is_alias(&self) -> bool {
+        !self.alias_chain.is_empty()
+    }
+}
+
 
 fn split_type_modifiers(mut name: &str) -> Result<(String, Vec<TypeModifier>), ABIResolveError> {
     use TypeModifier::*;
@@ -168,48 +188,52 @@ pub trait ABIView {
     }
 }
 
+
 impl<ABI: ABIView> ABITypeResolver for ABI {
     fn resolve_type(&self, type_name: &str) -> Result<ABIResolvedType, ABIResolveError> {
         let original = type_name.to_string();
         let (mut base, mut modifiers) = split_type_modifiers(&original)?;
 
-        let mut is_alias = false;
-        let mut visited_aliases = std::collections::HashSet::new();
+        // follow aliases
+        let mut visited = std::collections::HashSet::new();
+        let mut chain = Vec::<String>::new();
 
-        // resolve aliases
         while let Some(target) = self.resolve_alias(&base) {
-            if !visited_aliases.insert(base.clone()) {
+            // guard against cycles
+            if !visited.insert(base.clone()) {
                 return Err(ABIResolveError::fmt(format_args!(
-                    "Circular alias detected: {visited_aliases:?} -> {base}"
+                    "Circular alias detected: {visited:?} -> {base}"
                 )));
             }
-            is_alias = true;
-            let (next_base, next_mods) = split_type_modifiers(&target)?;
-            modifiers.extend(next_mods);
+            chain.push(base);
+            let (next_base, extra_mods) = split_type_modifiers(&target)?;
+            modifiers.extend(extra_mods);
             base = next_base;
         }
 
-        // resolve type meta flags
-        let is_std     = BUILTIN_TYPES.contains(base.as_str());
-        let is_struct  = self.structs().iter().find(|s| s.name == base).cloned();
+        // classify
+        let is_std = BUILTIN_TYPES.contains(base.as_str());
+        let is_struct = self.structs().iter().find(|s| s.name == base).cloned();
         let is_variant = self.variants().iter().find(|v| v.name == base).cloned();
 
         if !(is_std || is_struct.is_some() || is_variant.is_some()) {
             return Err(ABIResolveError::fmt(format_args!(
-                "Unknown type “{base}” after alias resolution")));
+                "Unknown type “{base}” after alias resolution"
+            )));
         }
 
         Ok(ABIResolvedType {
             original_name: original,
             resolved_name: base,
+            alias_chain: chain,
             is_std,
-            is_alias,
             is_struct,
             is_variant,
             modifiers,
         })
     }
 }
+
 
 /*
 
