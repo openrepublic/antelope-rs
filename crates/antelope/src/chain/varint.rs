@@ -4,7 +4,7 @@ use std::{fmt::Display, ops::{Add, Div, Mul, Sub}, str::FromStr};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{define_error, serializer::{Decoder, Encoder, Packer, PackerError}};
+use crate::{define_error, packer_error, serializer::{Decoder, Encoder, Packer, PackerError}};
 
 /// Unsigned LEB128-encoded 32-bit integer.
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Serialize, Deserialize)]
@@ -115,7 +115,9 @@ impl Packer for VarUint32 {
                 break;
             }
             shift += 7;
-            assert!(shift < 32, "malformed varuint32");
+            if shift >= 32 {
+                return Err(packer_error!("malformed varuint32"));
+            }
         }
         *self = value.into();
         Ok(len)
