@@ -9,6 +9,29 @@ use crate::{
     },
 };
 
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct AbiExtension(pub u16, pub Vec<u8>);
+
+impl Packer for AbiExtension {
+    fn size(&self) -> usize {
+        2 + self.1.len()
+    }
+
+    fn pack(&self, enc: &mut Encoder) -> usize {
+        let pos = enc.get_size();
+        self.0.pack(enc);
+        self.1.pack(enc);
+        enc.get_size() - pos
+    }
+
+    fn unpack(&mut self, data: &[u8]) -> usize {
+        let mut dec = Decoder::new(data);
+        dec.unpack(&mut self.0);
+        dec.unpack(&mut self.1);
+        dec.get_pos()
+    }
+}
+
 #[derive(Debug, Clone, Default, Eq, PartialEq, Serialize, Deserialize, StructPacker)]
 pub struct ABI {
     pub version: String,
@@ -23,9 +46,9 @@ pub struct ABI {
     #[serde(default)]
     pub ricardian_clauses: Vec<AbiClause>,
     #[serde(default)]
-    error_messages: Vec<AbiErrorMessage>,
+    pub error_messages: Vec<AbiErrorMessage>,
     #[serde(default)]
-    abi_extensions: Vec<String>,
+    pub abi_extensions: Vec<AbiExtension>,
     #[serde(default)]
     pub variants: Vec<AbiVariant>,
     #[serde(default)]

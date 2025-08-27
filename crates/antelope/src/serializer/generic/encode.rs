@@ -1,5 +1,5 @@
 use thiserror::Error;
-use crate::chain::abi::{ABIResolvedType, ABITypeResolver, ABIView, AbiStruct};
+use crate::chain::abi::{ABI, ABIResolvedType, ABITypeResolver, ABIView, AbiStruct};
 use crate::chain::asset::{Asset, ExtendedAsset, Symbol, SymbolCode};
 use crate::chain::checksum::{Checksum160, Checksum256, Checksum512};
 use crate::chain::name::Name;
@@ -7,7 +7,7 @@ use crate::chain::public_key::PublicKey;
 use crate::chain::signature::Signature;
 use crate::chain::time::{BlockTimestamp, TimePoint, TimePointSec};
 use crate::chain::varint::VarUint32;
-use crate::serializer::{Encoder, Packer};
+use crate::serializer::{Encoder, Decoder, Packer};
 use crate::serializer::generic::value::Value;
 use crate::util::Backtraced;
 
@@ -323,6 +323,17 @@ pub fn encode_params<T: ABIView + ABITypeResolver>(
         let field_type: String = struct_meta.fields.iter().find(|f| f.name == field_name)
             .unwrap()
             .r#type.clone();
+
+        // if action_name == "setabi" && field_name == "abi" {
+        //     if let Value::Bytes(encoded_abi) = field_value {
+        //         let mut buf = encoder.alloc(encoded_abi.len());
+        //         buf.copy_from_slice(&encoded_abi);
+        //         size += encoded_abi.len();
+        //         println!("ABI SIZE {}, total {}", encoded_abi.len(), size);
+        //         continue;
+        //     }
+        //     return Err(EncodeParamsError::ABIEncodingError.into());
+        // }
 
         size += encode_abi_type::<T>(&abi, &field_type, &field_value, &mut encoder)
             .map_err(|e| EncodeParamsError::EncoderError(e.inner))?;
